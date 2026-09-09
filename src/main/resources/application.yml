@@ -10,12 +10,18 @@ spring:
     username: ${DB_USERNAME:chat_registro_svc}
     password: ${DB_PASSWORD:chat_registro_pw}
 
+  # El esquema lo gestiona Flyway con las migraciones de src/main/resources/db/migration.
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+    baseline-on-migrate: false
+
   jpa:
     open-in-view: false
     hibernate:
-      # `update` mantiene el esquema al dia en desarrollo. Al adoptar Flyway/Liquibase,
-      # pasar a `validate` y versionar el DDL en src/main/resources/db/migration.
-      ddl-auto: ${JPA_DDL_AUTO:update}
+      # Hibernate NO toca el esquema: solo comprueba que las tablas cuadran con las entidades.
+      # El DDL lo aplica Flyway. Override con JPA_DDL_AUTO solo en casos puntuales.
+      ddl-auto: ${JPA_DDL_AUTO:validate}
     properties:
       hibernate.format_sql: true
 

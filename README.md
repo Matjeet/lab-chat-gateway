@@ -12,6 +12,7 @@ base de datos MySQL centralizada del sistema.
 | Lenguaje | Java 25 (toolchain de Gradle) |
 | Build | Gradle (wrapper incluido) |
 | Persistencia | Spring Data JPA + Hibernate; MySQL (runtime), H2 en memoria (tests) |
+| Migraciones | Flyway (`spring-boot-starter-flyway` + `flyway-mysql`) |
 | Contraseñas | BCrypt (`spring-security-crypto`) |
 | Validación | Bean Validation (`spring-boot-starter-validation`) |
 | Errores | RFC 9457 *Problem Details* vía `@RestControllerAdvice` |
@@ -35,9 +36,17 @@ mysql -u root -p < src/main/resources/db/bootstrap.sql
 ```
 
 Crea el esquema `chat_registro` y el usuario `chat_registro_svc` / `chat_registro_pw`.
-El DDL de las tablas lo aplica Hibernate al arrancar (`spring.jpa.hibernate.ddl-auto=update`).
-Al adoptar Flyway/Liquibase, pasar a `validate` y versionar el DDL en
-`src/main/resources/db/migration`.
+
+### Esquema de tablas (Flyway)
+
+Las tablas las crea **Flyway** al arrancar la aplicación, aplicando en orden las migraciones
+de `src/main/resources/db/migration` (`V1__crear_tabla_usuarios.sql`, …) y registrando en
+`flyway_schema_history` las ya ejecutadas. Hibernate solo **valida**
+(`spring.jpa.hibernate.ddl-auto=validate`): comprueba que las tablas cuadran con las
+entidades y no modifica nada.
+
+Para un cambio de esquema se añade un fichero nuevo `V<n>__descripcion.sql` (nunca se edita
+uno ya aplicado) y se ajusta la entidad JPA correspondiente.
 
 ### Credenciales
 
@@ -49,7 +58,7 @@ se sobreescriben por variables de entorno:
 | `DB_URL` | `jdbc:mysql://localhost:3306/chat_registro?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC&characterEncoding=UTF-8` |
 | `DB_USERNAME` | `chat_registro_svc` |
 | `DB_PASSWORD` | `chat_registro_pw` |
-| `JPA_DDL_AUTO` | `update` |
+| `JPA_DDL_AUTO` | `validate` |
 
 Los tests usan H2 en memoria (`src/test/resources/application.yml`); no necesitan MySQL.
 
@@ -105,6 +114,11 @@ com.arquetipo.demo
         ├── RegistroController.java          POST /api/v1/registro (enrutado + delegación)
         ├── RegistroApi.java                 contrato OpenAPI (anotaciones springdoc)
         └── dto/RegistroRequest.java · RegistroResponse.java
+
+src/main/resources/db
+├── bootstrap.sql                       esquema + usuario (se ejecuta como root, 1 vez)
+└── migration/
+    └── V1__crear_tabla_usuarios.sql     migración Flyway
 ```
 
 Flujo de una petición: `Controller` → `Service` (transacciones + reglas) → `Repository` (JPA)

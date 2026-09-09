@@ -38,6 +38,10 @@ dependencies {
 	runtimeOnly 'com.mysql:mysql-connector-j'
 	testRuntimeOnly 'com.h2database:h2'          // solo para los slices de test (@DataJpaTest, @SpringBootTest)
 
+	// --- Migraciones de esquema (Flyway) ---
+	implementation 'org.springframework.boot:spring-boot-starter-flyway'
+	runtimeOnly 'org.flywaydb:flyway-mysql'
+
 	// --- Seguridad (hash de contrasenas) ---
 	implementation 'org.springframework.security:spring-security-crypto'
 

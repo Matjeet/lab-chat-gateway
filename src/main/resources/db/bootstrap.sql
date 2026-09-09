@@ -6,14 +6,14 @@
 --    - su propio esquema (aqui: chat_registro)
 --    - su propio usuario con permisos SOLO sobre ese esquema
 --
---  Este script se ejecuta UNA sola vez, con un usuario administrador (root):
+--  Este script crea el ESQUEMA y el USUARIO. Se ejecuta UNA sola vez por entorno,
+--  con un usuario administrador (root):
 --
 --    mysql -u root -p < src/main/resources/db/bootstrap.sql
 --
---  El esquema de tablas (tabla `usuarios`, etc.) lo gestiona la aplicacion
---  via Hibernate (spring.jpa.hibernate.ddl-auto). Cuando el proyecto adopte
---  Flyway/Liquibase, cambiar ddl-auto a `validate` y versionar el DDL en
---  src/main/resources/db/migration.
+--  Las TABLAS (usuarios, etc.) las crea Flyway al arrancar la aplicacion, con las
+--  migraciones versionadas de src/main/resources/db/migration. Hibernate solo valida
+--  (spring.jpa.hibernate.ddl-auto=validate), no modifica el esquema.
 -- ============================================================================
 
 CREATE DATABASE IF NOT EXISTS chat_registro
