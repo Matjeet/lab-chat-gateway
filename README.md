@@ -68,6 +68,16 @@ Los tests usan H2 en memoria (`src/test/resources/application.yml`); no necesita
 Respuestas: `201` con el usuario creado (sin hash) · `409` si el username o el email ya
 existen · `400` con lista `errors` si la validación falla.
 
+El contrato completo (esquemas, ejemplos y códigos de respuesta) está documentado con
+anotaciones OpenAPI en `RegistroController` y los DTO, y se explora desde Swagger UI.
+
+## Documentación de la API (Swagger)
+
+Con la aplicación levantada (`./gradlew bootRun`):
+
+- **Swagger UI** → <http://localhost:8080/swagger-ui.html>
+- **OpenAPI JSON** → <http://localhost:8080/v3/api-docs>
+
 ## Estructura
 
 ```
