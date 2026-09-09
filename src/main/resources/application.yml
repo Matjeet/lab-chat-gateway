@@ -1,28 +1,23 @@
 spring:
   application:
-    name: demo
+    name: chat-registro
 
+  # Instancia MySQL centralizada y COMPARTIDA por todos los microservicios.
+  # Este servicio usa su propio esquema y su propio usuario (ver src/main/resources/db/bootstrap.sql).
+  # Las credenciales se sobreescriben por variables de entorno en cada despliegue.
   datasource:
-    url: jdbc:h2:mem:appdb;DB_CLOSE_DELAY=-1;MODE=LEGACY
-    username: sa
-    password: ""
+    url: ${DB_URL:jdbc:mysql://localhost:3306/chat_registro?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC&characterEncoding=UTF-8}
+    username: ${DB_USERNAME:chat_registro_svc}
+    password: ${DB_PASSWORD:chat_registro_pw}
 
   jpa:
     open-in-view: false
     hibernate:
-      ddl-auto: create-drop
-    defer-datasource-initialization: true
+      # `update` mantiene el esquema al dia en desarrollo. Al adoptar Flyway/Liquibase,
+      # pasar a `validate` y versionar el DDL en src/main/resources/db/migration.
+      ddl-auto: ${JPA_DDL_AUTO:update}
     properties:
       hibernate.format_sql: true
-
-  sql:
-    init:
-      mode: embedded
-
-  h2:
-    console:
-      enabled: true
-      path: /h2-console
 
   data:
     web:

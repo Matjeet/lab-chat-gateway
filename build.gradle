@@ -35,7 +35,11 @@ dependencies {
 
 	// --- Persistencia ---
 	implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
-	runtimeOnly 'com.h2database:h2'
+	runtimeOnly 'com.mysql:mysql-connector-j'
+	testRuntimeOnly 'com.h2database:h2'          // solo para los slices de test (@DataJpaTest, @SpringBootTest)
+
+	// --- Seguridad (hash de contrasenas) ---
+	implementation 'org.springframework.security:spring-security-crypto'
 
 	// --- Observabilidad ---
 	implementation 'org.springframework.boot:spring-boot-starter-actuator'
