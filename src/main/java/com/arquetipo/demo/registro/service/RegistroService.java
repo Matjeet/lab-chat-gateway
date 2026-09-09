@@ -5,7 +5,7 @@ import com.arquetipo.demo.registro.mapper.UsuarioMapper;
 import com.arquetipo.demo.registro.repository.UsuarioRepository;
 import com.arquetipo.demo.registro.web.dto.RegistroRequest;
 import com.arquetipo.demo.registro.web.dto.RegistroResponse;
-import com.arquetipo.demo.sample.exception.DuplicateResourceException;
+import com.arquetipo.demo.common.exception.DuplicateResourceException;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.security.crypto.password.PasswordEncoder;

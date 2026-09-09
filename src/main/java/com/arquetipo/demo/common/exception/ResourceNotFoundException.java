@@ -1,4 +1,4 @@
-package com.arquetipo.demo.sample.exception;
+package com.arquetipo.demo.common.exception;
 
 /**
  * Se lanza cuando no existe el recurso solicitado. El manejador global la traduce a HTTP 404.

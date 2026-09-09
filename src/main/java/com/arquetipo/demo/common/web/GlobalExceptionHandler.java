@@ -1,7 +1,7 @@
-package com.arquetipo.demo.sample.web;
+package com.arquetipo.demo.common.web;
 
-import com.arquetipo.demo.sample.exception.DuplicateResourceException;
-import com.arquetipo.demo.sample.exception.ResourceNotFoundException;
+import com.arquetipo.demo.common.exception.DuplicateResourceException;
+import com.arquetipo.demo.common.exception.ResourceNotFoundException;
 import java.net.URI;
 import java.time.Instant;
 import java.util.List;

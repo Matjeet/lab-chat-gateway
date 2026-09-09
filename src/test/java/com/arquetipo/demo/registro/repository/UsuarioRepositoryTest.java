@@ -3,7 +3,7 @@ package com.arquetipo.demo.registro.repository;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.arquetipo.demo.registro.domain.Usuario;
-import com.arquetipo.demo.sample.config.JpaAuditingConfig;
+import com.arquetipo.demo.common.config.JpaAuditingConfig;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest;

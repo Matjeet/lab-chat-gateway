@@ -8,7 +8,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.arquetipo.demo.registro.service.RegistroService;
 import com.arquetipo.demo.registro.web.dto.RegistroResponse;
-import com.arquetipo.demo.sample.exception.DuplicateResourceException;
+import com.arquetipo.demo.common.exception.DuplicateResourceException;
 import java.time.Instant;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;

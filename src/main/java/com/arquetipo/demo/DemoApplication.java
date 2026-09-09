@@ -6,16 +6,17 @@ import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 
 /**
- * Punto de entrada de la aplicacion.
+ * Punto de entrada del microservicio chat-registro.
  *
- * <p>El paquete {@code com.arquetipo.demo.sample} contiene un recurso CRUD completo (Product)
- * que sirve de plantilla: copia esas clases, renombralas para tu entidad y ajusta los campos.
+ * <p>Infraestructura transversal (auditoria JPA, excepciones de dominio y traduccion a
+ * Problem Details) en {@code com.arquetipo.demo.common}; el flujo de registro en
+ * {@code com.arquetipo.demo.registro}.
  */
 @SpringBootApplication
 @OpenAPIDefinition(info = @Info(
-		title = "Servicio backend (arquetipo)",
+		title = "chat-registro",
 		version = "v1",
-		description = "API de ejemplo generada a partir del arquetipo MVC de Spring Boot"))
+		description = "Microservicio de registro de usuarios del sistema Chat"))
 public class DemoApplication {
 
 	public static void main(String[] args) {

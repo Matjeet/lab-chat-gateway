@@ -1,4 +1,4 @@
-package com.arquetipo.demo.sample.exception;
+package com.arquetipo.demo.common.exception;
 
 /**
  * Se lanza al intentar crear un recurso que viola una restriccion de unicidad de negocio.

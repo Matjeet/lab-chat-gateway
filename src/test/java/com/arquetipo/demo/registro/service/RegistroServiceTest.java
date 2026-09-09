@@ -10,7 +10,7 @@ import com.arquetipo.demo.registro.mapper.UsuarioMapper;
 import com.arquetipo.demo.registro.repository.UsuarioRepository;
 import com.arquetipo.demo.registro.web.dto.RegistroRequest;
 import com.arquetipo.demo.registro.web.dto.RegistroResponse;
-import com.arquetipo.demo.sample.exception.DuplicateResourceException;
+import com.arquetipo.demo.common.exception.DuplicateResourceException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
