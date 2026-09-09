@@ -69,7 +69,8 @@ Respuestas: `201` con el usuario creado (sin hash) · `409` si el username o el 
 existen · `400` con lista `errors` si la validación falla.
 
 El contrato completo (esquemas, ejemplos y códigos de respuesta) está documentado con
-anotaciones OpenAPI en `RegistroController` y los DTO, y se explora desde Swagger UI.
+anotaciones OpenAPI en la interfaz `RegistroApi` (que implementa el controlador) y en los
+DTO, y se explora desde Swagger UI.
 
 ## Documentación de la API (Swagger)
 
@@ -96,7 +97,8 @@ com.arquetipo.demo
     ├── mapper/UsuarioMapper.java            entidad → RegistroResponse
     ├── service/RegistroService.java         unicidad + hash + persistencia
     └── web/
-        ├── RegistroController.java          POST /api/v1/registro
+        ├── RegistroController.java          POST /api/v1/registro (enrutado + delegación)
+        ├── RegistroApi.java                 contrato OpenAPI (anotaciones springdoc)
         └── dto/RegistroRequest.java · RegistroResponse.java
 ```
 
