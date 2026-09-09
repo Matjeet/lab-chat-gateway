@@ -69,22 +69,37 @@ class RegistroServiceTest {
 		assertThat(new BCryptPasswordEncoder().matches("secretpass", persistido.getPasswordHash())).isTrue();
 	}
 
+	private static final String MENSAJE_GENERICO =
+			"No se pudo completar el registro con los datos proporcionados";
+
 	@Test
-	void registrar_usernameDuplicado_lanza409() {
+	void registrar_usernameDuplicado_lanzaConflictoGenerico() {
 		when(repository.existsByUsernameIgnoreCase("mateo")).thenReturn(true);
 
 		assertThatThrownBy(() -> service.registrar(request()))
 				.isInstanceOf(DuplicateResourceException.class)
-				.hasMessageContaining("username");
+				.hasMessage(MENSAJE_GENERICO);
 	}
 
 	@Test
-	void registrar_emailDuplicado_lanza409() {
+	void registrar_emailDuplicado_lanzaMismoConflictoGenerico() {
 		when(repository.existsByUsernameIgnoreCase("mateo")).thenReturn(false);
 		when(repository.existsByEmailIgnoreCase("mateo@example.com")).thenReturn(true);
 
 		assertThatThrownBy(() -> service.registrar(request()))
 				.isInstanceOf(DuplicateResourceException.class)
-				.hasMessageContaining("email");
+				.hasMessage(MENSAJE_GENERICO);
+	}
+
+	@Test
+	void registrar_carreraEnInsert_lanzaMismoConflictoGenerico() {
+		when(repository.existsByUsernameIgnoreCase("mateo")).thenReturn(false);
+		when(repository.existsByEmailIgnoreCase("mateo@example.com")).thenReturn(false);
+		when(repository.saveAndFlush(any(Usuario.class)))
+				.thenThrow(new org.springframework.dao.DataIntegrityViolationException("uk_usuarios_email"));
+
+		assertThatThrownBy(() -> service.registrar(request()))
+				.isInstanceOf(DuplicateResourceException.class)
+				.hasMessage(MENSAJE_GENERICO);
 	}
 }

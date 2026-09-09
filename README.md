@@ -65,8 +65,13 @@ Los tests usan H2 en memoria (`src/test/resources/application.yml`); no necesita
 - `email`: formato válido, ≤255, único (se normaliza a minúsculas).
 - `password`: 8–100 caracteres; se guarda **solo el hash BCrypt**, nunca en claro.
 
-Respuestas: `201` con el usuario creado (sin hash) · `409` si el username o el email ya
-existen · `400` con lista `errors` si la validación falla.
+Respuestas: `201` con el usuario creado (sin hash) · `409` si los datos entran en conflicto
+con una cuenta existente · `400` con lista `errors` si la validación falla.
+
+Por seguridad, el `409` devuelve **siempre el mismo mensaje genérico** (`"No se pudo
+completar el registro con los datos proporcionados"`), sin revelar qué campo colisionó ni
+el valor enviado. El detalle (username/email concretos) queda solo en el log del servidor
+(`WARN`), para no facilitar la enumeración de cuentas.
 
 El contrato completo (esquemas, ejemplos y códigos de respuesta) está documentado con
 anotaciones OpenAPI en la interfaz `RegistroApi` (que implementa el controlador) y en los

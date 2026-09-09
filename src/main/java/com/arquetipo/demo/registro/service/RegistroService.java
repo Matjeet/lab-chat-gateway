@@ -1,11 +1,11 @@
 package com.arquetipo.demo.registro.service;
 
+import com.arquetipo.demo.common.exception.DuplicateResourceException;
 import com.arquetipo.demo.registro.domain.Usuario;
 import com.arquetipo.demo.registro.mapper.UsuarioMapper;
 import com.arquetipo.demo.registro.repository.UsuarioRepository;
 import com.arquetipo.demo.registro.web.dto.RegistroRequest;
 import com.arquetipo.demo.registro.web.dto.RegistroResponse;
-import com.arquetipo.demo.common.exception.DuplicateResourceException;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -14,13 +14,20 @@ import org.springframework.transaction.annotation.Transactional;
 
 /**
  * Reglas del alta de usuarios: valida unicidad, hashea la contrasena y persiste.
+ *
+ * <p>Seguridad: ante un conflicto (username o email ya registrados) el cliente recibe
+ * siempre el <b>mismo mensaje generico</b>, sin distinguir que campo colisiono ni
+ * devolver el valor enviado. El detalle (que campo y con que valor) queda solo en el log
+ * del servidor, para no facilitar la enumeracion de cuentas.
  */
 @Slf4j
 @Service
 @Transactional
 public class RegistroService {
 
-	private static final String RECURSO = "Usuario";
+	/** Mensaje unico que ve el cliente ante cualquier conflicto de unicidad. */
+	private static final String CONFLICTO_GENERICO =
+			"No se pudo completar el registro con los datos proporcionados";
 
 	private final UsuarioRepository repository;
 	private final UsuarioMapper mapper;
@@ -37,10 +44,12 @@ public class RegistroService {
 		String email = request.email().trim().toLowerCase();
 
 		if (repository.existsByUsernameIgnoreCase(username)) {
-			throw new DuplicateResourceException(RECURSO, "username", username);
+			log.warn("Registro rechazado: el username ya esta registrado. username='{}'", username);
+			throw new DuplicateResourceException(CONFLICTO_GENERICO);
 		}
 		if (repository.existsByEmailIgnoreCase(email)) {
-			throw new DuplicateResourceException(RECURSO, "email", email);
+			log.warn("Registro rechazado: el email ya esta registrado. email='{}'", email);
+			throw new DuplicateResourceException(CONFLICTO_GENERICO);
 		}
 
 		Usuario usuario = new Usuario();
@@ -51,12 +60,13 @@ public class RegistroService {
 
 		try {
 			Usuario guardado = repository.saveAndFlush(usuario);
-			log.debug("Usuario registrado id={} username={}", guardado.getId(), guardado.getUsername());
+			log.debug("Usuario registrado id={} username='{}'", guardado.getId(), guardado.getUsername());
 			return mapper.toResponse(guardado);
 		} catch (DataIntegrityViolationException ex) {
-			// Carrera entre la comprobacion previa y el insert: lo traducimos a 409.
-			throw new DuplicateResourceException(
-					"Ya existe un usuario con ese username o email");
+			// Carrera entre la comprobacion previa y el insert: el detalle va al log, no al cliente.
+			log.warn("Registro rechazado por restriccion de unicidad en el insert. username='{}' email='{}'",
+					username, email, ex);
+			throw new DuplicateResourceException(CONFLICTO_GENERICO);
 		}
 	}
 }

@@ -55,9 +55,10 @@ class RegistroControllerTest {
 	}
 
 	@Test
-	void registrar_usuarioDuplicado_devuelve409() throws Exception {
+	void registrar_usuarioDuplicado_devuelve409ConMensajeGenerico() throws Exception {
 		when(registroService.registrar(any()))
-				.thenThrow(new DuplicateResourceException("Usuario", "username", "mateo"));
+				.thenThrow(new DuplicateResourceException(
+						"No se pudo completar el registro con los datos proporcionados"));
 
 		mockMvc.perform(post("/api/v1/registro")
 						.contentType(MediaType.APPLICATION_JSON)
@@ -65,6 +66,8 @@ class RegistroControllerTest {
 								{"username":"mateo","email":"mateo@example.com","password":"secretpass"}
 								"""))
 				.andExpect(status().isConflict())
-				.andExpect(jsonPath("$.title").value("Recurso duplicado"));
+				.andExpect(jsonPath("$.title").value("Recurso duplicado"))
+				.andExpect(jsonPath("$.detail").value("No se pudo completar el registro con los datos proporcionados"))
+				.andExpect(jsonPath("$.detail", org.hamcrest.Matchers.not(org.hamcrest.Matchers.containsString("mateo"))));
 	}
 }

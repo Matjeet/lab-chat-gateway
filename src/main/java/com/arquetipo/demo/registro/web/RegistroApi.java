@@ -65,7 +65,10 @@ public interface RegistroApi {
 									"""))),
 			@ApiResponse(
 					responseCode = "409",
-					description = "El username o el email ya estan registrados",
+					description = """
+							Los datos entran en conflicto con una cuenta existente. Por seguridad la
+							respuesta es siempre la misma, sin indicar que campo colisiono.
+							""",
 					content = @Content(
 							mediaType = MediaType.APPLICATION_PROBLEM_JSON_VALUE,
 							schema = @Schema(implementation = ProblemDetail.class),
@@ -74,7 +77,7 @@ public interface RegistroApi {
 									  "type": "urn:problem-type:duplicate-resource",
 									  "title": "Recurso duplicado",
 									  "status": 409,
-									  "detail": "Ya existe Usuario con username = mateo",
+									  "detail": "No se pudo completar el registro con los datos proporcionados",
 									  "instance": "/api/v1/registro"
 									}
 									""")))
