@@ -86,7 +86,10 @@ El contrato completo (esquemas, ejemplos y códigos de respuesta) está document
 anotaciones OpenAPI en la interfaz `RegistroApi` (que implementa el controlador) y en los
 DTO, y se explora desde Swagger UI.
 
-## Documentación de la API (Swagger)
+## Documentación de la API
+
+- **Contratos para clientes** → [`docs/contratos-api.md`](docs/contratos-api.md) (request/response,
+  errores, notas de integración para frontend, modelos TypeScript).
 
 Con la aplicación levantada (`./gradlew bootRun`):
 
