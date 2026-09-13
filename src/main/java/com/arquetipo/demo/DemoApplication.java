@@ -6,17 +6,19 @@ import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 
 /**
- * Punto de entrada del microservicio chat-registro.
+ * Punto de entrada de chat-gateway.
  *
- * <p>Infraestructura transversal (auditoria JPA, excepciones de dominio y traduccion a
- * Problem Details) en {@code com.arquetipo.demo.common}; el flujo de registro en
+ * <p>Unico servicio que el cliente llama por REST: cada feature (hoy {@code registro})
+ * traduce su peticion a una llamada gRPC al microservicio correspondiente. Infraestructura
+ * transversal (excepciones de dominio y su traduccion a Problem Details) en
+ * {@code com.arquetipo.demo.common}; el enrutado de registro en
  * {@code com.arquetipo.demo.registro}.
  */
 @SpringBootApplication
 @OpenAPIDefinition(info = @Info(
-		title = "chat-registro",
+		title = "chat-gateway",
 		version = "v1",
-		description = "Microservicio de registro de usuarios del sistema Chat"))
+		description = "Gateway del sistema Chat: punto de entrada REST, enruta por gRPC a cada microservicio"))
 public class DemoApplication {
 
 	public static void main(String[] args) {

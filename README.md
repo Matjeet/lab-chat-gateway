@@ -1,8 +1,17 @@
-# chat-registro — microservicio de registro de usuarios
+# chat-gateway — gateway del sistema Chat
 
-Servicio backend en **Spring Boot 4 / Java 25** con arquitectura MVC por capas.
-Expone el **flujo de registro** (`POST /api/v1/registro`) que persiste usuarios en la
-base de datos MySQL centralizada del sistema.
+Servicio backend en **Spring Boot 4 / Java 25** con arquitectura MVC por capas. Es el
+**único punto de entrada** del sistema: el cliente (frontend, app móvil) le habla siempre por
+**REST**; el gateway valida el formato del cuerpo y reenvía cada petición al microservicio
+correspondiente por **gRPC** (protocolo interno, no expuesto al cliente).
+
+```
+Cliente ──REST──▶ chat-gateway ──gRPC──▶ chat-registro
+                              ──gRPC──▶ (futuros microservicios)
+```
+
+Ver [`docs/arquitectura-gateway.md`](docs/arquitectura-gateway.md) para el patrón completo y
+cómo añadir un microservicio nuevo.
 
 ## Stack
 
@@ -11,85 +20,47 @@ base de datos MySQL centralizada del sistema.
 | Framework | Spring Boot 4.1.1 (`spring-boot-starter-webmvc`) |
 | Lenguaje | Java 25 (toolchain de Gradle) |
 | Build | Gradle (wrapper incluido) |
-| Persistencia | Spring Data JPA + Hibernate; MySQL (runtime), H2 en memoria (tests) |
-| Migraciones | Flyway (`spring-boot-starter-flyway` + `flyway-mysql`) |
-| Contraseñas | BCrypt (`spring-security-crypto`) |
+| Protocolo con el cliente | REST/JSON |
+| Protocolo con los microservicios | gRPC (`io.grpc` + `com.google.protobuf` gradle plugin) |
 | Validación | Bean Validation (`spring-boot-starter-validation`) |
 | Errores | RFC 9457 *Problem Details* vía `@RestControllerAdvice` |
-| Docs API | springdoc-openapi + Swagger UI |
+| Docs API | springdoc-openapi + Swagger UI (contrato REST expuesto al cliente) |
 | Observabilidad | Spring Boot Actuator |
 | Utilidades | Lombok, DevTools |
 
-## Base de datos
+El gateway **no tiene base de datos propia**: no persiste nada, solo enruta. Toda persistencia
+vive en el microservicio destino (p. ej. `chat_registro` en la MySQL centralizada, gestionada
+por `chat-registro`).
 
-Todos los microservicios comparten **una instancia MySQL** (localhost:3306). Cada servicio
-tiene su **propio esquema** y su **propio usuario** con permisos solo sobre ese esquema.
-
-| Servicio | Esquema | Usuario |
-|----------|---------|---------|
-| chat-registro | `chat_registro` | `chat_registro_svc` |
-
-### Provisión (una sola vez, como `root`)
-
-```bash
-mysql -u root -p < src/main/resources/db/bootstrap.sql
-```
-
-Crea el esquema `chat_registro` y el usuario `chat_registro_svc` / `chat_registro_pw`.
-
-### Esquema de tablas (Flyway)
-
-Las tablas las crea **Flyway** al arrancar la aplicación, aplicando en orden las migraciones
-de `src/main/resources/db/migration` (`V1__crear_tabla_usuarios.sql`, …) y registrando en
-`flyway_schema_history` las ya ejecutadas. Hibernate solo **valida**
-(`spring.jpa.hibernate.ddl-auto=validate`): comprueba que las tablas cuadran con las
-entidades y no modifica nada.
-
-Para un cambio de esquema se añade un fichero nuevo `V<n>__descripcion.sql` (nunca se edita
-uno ya aplicado) y se ajusta la entidad JPA correspondiente.
-
-### Credenciales
-
-`application.yml` trae valores por defecto para desarrollo local. En cualquier otro entorno
-se sobreescriben por variables de entorno:
-
-| Variable | Por defecto |
-|----------|-------------|
-| `DB_URL` | `jdbc:mysql://localhost:3306/chat_registro?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC&characterEncoding=UTF-8` |
-| `DB_USERNAME` | `chat_registro_svc` |
-| `DB_PASSWORD` | `chat_registro_pw` |
-| `JPA_DDL_AUTO` | `validate` |
-
-Los tests usan H2 en memoria (`src/test/resources/application.yml`); no necesitan MySQL.
-
-## Flujo de registro
+## Flujo de registro (vía `chat-registro`)
 
 `POST /api/v1/registro`
 
 ```json
-{ "username": "mateo", "email": "mateo@example.com", "password": "secretpass" }
+{ "username": "mateo", "email": "mateo@example.com", "password": "Passw0rd!23" }
 ```
 
 - `username`: 3–50 caracteres, `[a-zA-Z0-9._-]`, único (sin distinguir mayúsculas).
 - `email`: formato válido, ≤255, único (se normaliza a minúsculas).
-- `password`: 8–100 caracteres; se guarda **solo el hash BCrypt**, nunca en claro.
+- `password`: 8–20 caracteres; mayúscula + minúscula + número + carácter especial, sin 4+
+  repetidos seguidos. El gateway solo la transporta hasta `chat-registro` por gRPC: no la
+  persiste ni la loguea en ningún punto.
 
-Respuestas: `201` con el usuario creado (sin hash) · `409` si los datos entran en conflicto
-con una cuenta existente · `400` con lista `errors` si la validación falla.
-
-Por seguridad, el `409` devuelve **siempre el mismo mensaje genérico** (`"No se pudo
-completar el registro con los datos proporcionados"`), sin revelar qué campo colisionó ni
-el valor enviado. El detalle (username/email concretos) queda solo en el log del servidor
-(`WARN`), para no facilitar la enumeración de cuentas.
+El gateway valida el cuerpo (mismas reglas que `chat-registro`) y, si pasa, llama por gRPC a
+`RegistroGrpcService/Registrar`. Respuestas: `201` con el usuario creado · `409` genérico si
+los datos entran en conflicto · `400` con `errors[]` si la validación falla · `503` si
+`chat-registro` no está disponible.
 
 El contrato completo (esquemas, ejemplos y códigos de respuesta) está documentado con
-anotaciones OpenAPI en la interfaz `RegistroApi` (que implementa el controlador) y en los
-DTO, y se explora desde Swagger UI.
+anotaciones OpenAPI en la interfaz `RegistroApi` (que implementa el controlador) y en los DTO,
+y se explora desde Swagger UI.
 
 ## Documentación de la API
 
 - **Contratos para clientes** → [`docs/contratos-api.md`](docs/contratos-api.md) (request/response,
   errores, notas de integración para frontend, modelos TypeScript).
+- **Arquitectura del gateway** → [`docs/arquitectura-gateway.md`](docs/arquitectura-gateway.md)
+  (cómo se enruta cada petición, cómo añadir un microservicio nuevo).
 
 Con la aplicación levantada (`./gradlew bootRun`):
 
@@ -102,30 +73,29 @@ Con la aplicación levantada (`./gradlew bootRun`):
 com.arquetipo.demo
 ├── DemoApplication.java
 ├── common/                              infraestructura transversal
-│   ├── config/JpaAuditingConfig.java        auditoría (createdAt/updatedAt)
+│   ├── config/CorsConfig.java · CorsProperties.java   CORS para /api/** (el gateway habla con el navegador)
 │   ├── exception/
 │   │   ├── ResourceNotFoundException        → 404
-│   │   └── DuplicateResourceException       → 409
+│   │   ├── DuplicateResourceException       → 409
+│   │   ├── ValidationException              → 400 con errors[] (espejo de Bean Validation, vía gRPC)
+│   │   └── ServiceUnavailableException      → 503 (microservicio destino caido)
 │   └── web/GlobalExceptionHandler.java      excepciones → Problem Details (RFC 9457)
-└── registro/                            flujo de alta de usuarios
-    ├── config/PasswordEncoderConfig.java    bean PasswordEncoder (BCrypt)
-    ├── domain/Usuario.java                  entidad JPA (tabla `usuarios`)
-    ├── repository/UsuarioRepository.java    existsBy… / findBy… ignorando mayúsculas
-    ├── mapper/UsuarioMapper.java            entidad → RegistroResponse
-    ├── service/RegistroService.java         unicidad + hash + persistencia
-    └── web/
-        ├── RegistroController.java          POST /api/v1/registro (enrutado + delegación)
-        ├── RegistroApi.java                 contrato OpenAPI (anotaciones springdoc)
-        └── dto/RegistroRequest.java · RegistroResponse.java
+└── registro/                            enrutado hacia chat-registro
+    ├── web/
+    │   ├── RegistroController.java          POST /api/v1/registro (valida + delega)
+    │   ├── RegistroApi.java                 contrato OpenAPI
+    │   └── dto/RegistroRequest.java · RegistroResponse.java
+    ├── service/RegistroService.java         orquesta; hoy solo delega en el cliente gRPC
+    └── grpc/
+        ├── RegistroGrpcProperties.java          host/puerto de chat-registro (application.yml)
+        ├── RegistroGrpcClientConfig.java         ManagedChannel + stub como beans
+        └── RegistroGrpcClient.java               DTO <-> proto, errores gRPC <-> excepciones de dominio
 
-src/main/resources/db
-├── bootstrap.sql                       esquema + usuario (se ejecuta como root, 1 vez)
-└── migration/
-    └── V1__crear_tabla_usuarios.sql     migración Flyway
+src/main/proto/registro.proto            copia exacta del contrato gRPC de chat-registro
 ```
 
-Flujo de una petición: `Controller` → `Service` (transacciones + reglas) → `Repository` (JPA)
-→ `Entity`. El `Mapper` traduce entre `Entity` y los DTO; el cliente nunca ve la entidad.
+Flujo de una petición: `Controller` (valida) → `Service` (orquesta) → `GrpcClient` (llama al
+microservicio y traduce la respuesta/error). El cliente REST nunca ve un mensaje proto.
 
 ## Arrancar
 
@@ -137,7 +107,18 @@ Flujo de una petición: `Controller` → `Service` (transacciones + reglas) → 
 > `JAVA_HOME` apunta a un JDK antiguo, ajústalo o descomenta `org.gradle.java.home` en
 > `gradle.properties`.
 >
-> Antes del primer arranque hay que provisionar el esquema (ver *Base de datos*).
+> Necesita a `chat-registro` corriendo (por defecto en `localhost:9090` por gRPC) para que
+> `POST /api/v1/registro` complete con éxito; si no, el gateway responde `503`. El propio
+> arranque del gateway no depende de ello: el canal gRPC conecta de forma perezosa.
+
+### Variables de entorno
+
+| Variable | Por defecto | Uso |
+|----------|-------------|-----|
+| `REGISTRO_GRPC_HOST` | `localhost` | Host gRPC de `chat-registro` |
+| `REGISTRO_GRPC_PORT` | `9090` | Puerto gRPC de `chat-registro` |
+| `CORS_ALLOWED_ORIGINS` | `http://localhost:3000` | Orígenes permitidos para `/api/**` |
+| `CORS_ALLOW_CREDENTIALS` | `false` | Si se permiten cookies/credenciales en CORS |
 
 | Recurso | URL |
 |---------|-----|
@@ -146,7 +127,7 @@ Flujo de una petición: `Controller` → `Service` (transacciones + reglas) → 
 | OpenAPI JSON | http://localhost:8080/v3/api-docs |
 | Actuator health | http://localhost:8080/actuator/health |
 
-Tests: `./gradlew test` · Empaquetar: `./gradlew bootJar` · Docker: `docker build -t chat-registro .`
+Tests: `./gradlew test` · Empaquetar: `./gradlew bootJar` · Docker: `docker build -t chat-gateway .`
 
 ## Contrato de errores
 
@@ -168,6 +149,6 @@ Todas las respuestas de error siguen RFC 9457:
 |-----------|------|
 | `ResourceNotFoundException` | 404 |
 | `DuplicateResourceException` | 409 |
-| Bean Validation (`@Valid`) | 400 con lista `errors` |
-| `DataIntegrityViolationException` | 409 |
+| `ValidationException` / Bean Validation (`@Valid`) | 400 con lista `errors` |
+| `ServiceUnavailableException` | 503 |
 | cualquier otra | 500 (mensaje genérico, traza solo en logs) |

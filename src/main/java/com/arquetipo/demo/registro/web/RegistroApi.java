@@ -13,21 +13,23 @@ import org.springframework.http.MediaType;
 import org.springframework.http.ProblemDetail;
 
 /**
- * Contrato OpenAPI del recurso de registro. Aisla las anotaciones de documentacion
- * (springdoc / swagger) para que {@link RegistroController} solo contenga el enrutado y
- * la delegacion al servicio.
+ * Contrato OpenAPI del recurso de registro tal como lo expone el gateway al cliente. Es el
+ * mismo contrato que documenta {@code chat-registro} en su {@code docs/contratos-api.md}: el
+ * gateway solo cambia quien atiende la conexion TCP, no la forma del JSON.
  *
  * <p>Lo implementa el controlador: springdoc lee las anotaciones heredadas de esta interfaz.
  */
-@Tag(name = "Registro", description = "Alta de usuarios del servicio")
+@Tag(name = "Registro", description = "Alta de usuarios del sistema, enrutada a chat-registro")
 public interface RegistroApi {
 
 	@Operation(
 			summary = "Registrar un usuario",
 			description = """
-					Da de alta un usuario nuevo. El `username` y el `email` deben ser unicos
-					(no se distinguen mayusculas de minusculas) y el `email` se normaliza a
-					minusculas antes de guardarlo. La contrasena se almacena solo como hash BCrypt.
+					Da de alta un usuario nuevo. El gateway valida el formato del cuerpo y lo
+					reenvia por gRPC a chat-registro, que es quien crea la cuenta en el
+					proveedor de identidad y persiste el perfil. El `username` y el `email`
+					deben ser unicos (no se distinguen mayusculas de minusculas); el `email`
+					se normaliza a minusculas antes de guardarlo.
 					""")
 	@ApiResponses({
 			@ApiResponse(
@@ -41,6 +43,7 @@ public interface RegistroApi {
 									  "id": 1,
 									  "username": "mateo",
 									  "email": "mateo@example.com",
+									  "proveedor": "password",
 									  "activo": true,
 									  "createdAt": "2026-09-08T20:53:47.441193Z"
 									}
@@ -78,6 +81,21 @@ public interface RegistroApi {
 									  "title": "Recurso duplicado",
 									  "status": 409,
 									  "detail": "No se pudo completar el registro con los datos proporcionados",
+									  "instance": "/api/v1/registro"
+									}
+									"""))),
+			@ApiResponse(
+					responseCode = "503",
+					description = "chat-registro no esta disponible en este momento.",
+					content = @Content(
+							mediaType = MediaType.APPLICATION_PROBLEM_JSON_VALUE,
+							schema = @Schema(implementation = ProblemDetail.class),
+							examples = @ExampleObject(value = """
+									{
+									  "type": "urn:problem-type:service-unavailable",
+									  "title": "Servicio no disponible",
+									  "status": 503,
+									  "detail": "El servicio no esta disponible en este momento. Intentelo mas tarde.",
 									  "instance": "/api/v1/registro"
 									}
 									""")))

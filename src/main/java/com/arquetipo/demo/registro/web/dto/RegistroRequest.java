@@ -7,9 +7,15 @@ import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 
 /**
- * DTO de entrada del alta de un usuario.
+ * DTO de entrada del alta de un usuario, tal como lo recibe el gateway del cliente REST.
+ *
+ * <p>Mismas reglas que valida {@code chat-registro} (ver su
+ * {@code docs/contratos-api.md} §3.1): el gateway las aplica primero para devolver un 400
+ * inmediato sin ni siquiera llamar por gRPC, y {@code chat-registro} las vuelve a aplicar
+ * como autoridad final. El gateway no persiste ni reenvia la contrasena a ningun sitio
+ * propio: solo la transporta hasta el microservicio.
  */
-@Schema(name = "RegistroRequest", description = "Datos para dar de alta un usuario")
+@Schema(name = "RegistroRequest", description = "Datos para registrar un usuario nuevo")
 public record RegistroRequest(
 
 		@Schema(
@@ -32,12 +38,24 @@ public record RegistroRequest(
 		String email,
 
 		@Schema(
-				description = "Contrasena en claro. Se almacena solo como hash BCrypt.",
-				example = "secretpass",
-				minLength = 8, maxLength = 100,
+				description = "Contrasena en claro: el gateway solo la transporta hasta "
+						+ "chat-registro, que la reenvia al proveedor de identidad. No se "
+						+ "persiste ni se loguea en ningun punto del gateway.",
+				example = "Passw0rd!23",
+				minLength = 8, maxLength = 20,
 				format = "password")
 		@NotBlank
-		@Size(min = 8, max = 100)
+		@Size(min = 8, max = 20)
+		@Pattern(
+				regexp = "^(?=.*[a-z])(?=.*[A-Z])(?=.*\\d)(?=.*[^A-Za-z0-9\\s])(?!.*(.)\\1{3,}).+$",
+				message = "debe tener mayuscula, minuscula, numero y caracter especial, "
+						+ "y ningun caracter repetido 4 o mas veces seguidas")
 		String password
 ) {
+
+	/** Nunca incluir la contrasena en logs, ni siquiera por accidente via un log de este record. */
+	@Override
+	public String toString() {
+		return "RegistroRequest[username=%s, email=%s, password=***]".formatted(username, email);
+	}
 }

@@ -1,0 +1,29 @@
+syntax = "proto3";
+
+package com.arquetipo.demo.registro.grpc;
+
+option java_multiple_files = true;
+option java_package = "com.arquetipo.demo.registro.grpc";
+option java_outer_classname = "RegistroProto";
+
+// Copia exacta del contrato publicado por chat-registro en su
+// docs/contrato-grpc-registro.md §2. No modificar aqui: un cambio de contrato
+// lo decide chat-registro y se refleja copiando de nuevo ese archivo.
+service RegistroGrpcService {
+  rpc Registrar (RegistrarUsuarioRequest) returns (RegistrarUsuarioResponse);
+}
+
+message RegistrarUsuarioRequest {
+  string username = 1;
+  string email = 2;
+  string password = 3;
+}
+
+message RegistrarUsuarioResponse {
+  int64 id = 1;
+  string username = 2;
+  string email = 3;
+  string proveedor = 4;
+  bool activo = 5;
+  string created_at = 6;
+}

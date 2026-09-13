@@ -2,11 +2,12 @@ plugins {
 	id 'java'
 	id 'org.springframework.boot' version '4.1.1'
 	id 'io.spring.dependency-management' version '1.1.7'
+	id 'com.google.protobuf' version '0.9.6'
 }
 
 group = 'com.arquetipo'
 version = '0.0.1-SNAPSHOT'
-description = 'Arquetipo base MVC para servicios backend con Spring Boot'
+description = 'Gateway: unico punto de entrada REST del sistema, enruta cada peticion al microservicio correspondiente por gRPC'
 
 java {
 	toolchain {
@@ -26,30 +27,31 @@ repositories {
 
 ext {
 	springdocVersion = '3.1.1'
+	// Spring Boot 4.1.1 gestiona io.grpc:* como 1.83.1 en su BOM de dependencias: fijar aqui
+	// otra version distinta provoca un conflicto de resolucion (Gradle se queda con la mas
+	// alta de las dos) y un ABI mismatch entre grpc-stub y grpc-core -> AbstractMethodError
+	// en tiempo de ejecucion. Se fija explicitamente la misma para que quede documentado.
+	grpcVersion = '1.83.1'
+	protobufVersion = '4.29.5'
 }
 
 dependencies {
-	// --- Web / MVC ---
+	// --- Web / MVC (protocolo con el cliente) ---
 	implementation 'org.springframework.boot:spring-boot-starter-webmvc'
 	implementation 'org.springframework.boot:spring-boot-starter-validation'
-
-	// --- Persistencia ---
-	implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
-	runtimeOnly 'com.mysql:mysql-connector-j'
-	testRuntimeOnly 'com.h2database:h2'          // solo para los slices de test (@DataJpaTest, @SpringBootTest)
-
-	// --- Migraciones de esquema (Flyway) ---
-	implementation 'org.springframework.boot:spring-boot-starter-flyway'
-	runtimeOnly 'org.flywaydb:flyway-mysql'
-
-	// --- Seguridad (hash de contrasenas) ---
-	implementation 'org.springframework.security:spring-security-crypto'
 
 	// --- Observabilidad ---
 	implementation 'org.springframework.boot:spring-boot-starter-actuator'
 
-	// --- Documentacion de API (OpenAPI / Swagger UI) ---
+	// --- Documentacion de API (OpenAPI / Swagger UI) del contrato REST expuesto al cliente ---
 	implementation "org.springdoc:springdoc-openapi-starter-webmvc-ui:${springdocVersion}"
+
+	// --- gRPC (protocolo con los microservicios internos) ---
+	implementation "io.grpc:grpc-netty-shaded:${grpcVersion}"
+	implementation "io.grpc:grpc-protobuf:${grpcVersion}"
+	implementation "io.grpc:grpc-stub:${grpcVersion}"
+	implementation "com.google.protobuf:protobuf-java:${protobufVersion}"
+	compileOnly 'jakarta.annotation:jakarta.annotation-api'  // @Generated en los stubs generados
 
 	// --- Utilidades de desarrollo ---
 	compileOnly 'org.projectlombok:lombok'
@@ -60,14 +62,37 @@ dependencies {
 	// --- Test ---
 	testImplementation 'org.springframework.boot:spring-boot-starter-test'
 	testImplementation 'org.springframework.boot:spring-boot-starter-webmvc-test'
-	testImplementation 'org.springframework.boot:spring-boot-starter-data-jpa-test'
+	// TestRestTemplate se separo en modulos propios en Spring Boot 4; resttestclient depende
+	// en tiempo de ejecucion de RestTemplateBuilder (restclient), que no se resuelve solo.
+	testImplementation 'org.springframework.boot:spring-boot-resttestclient'
+	testImplementation 'org.springframework.boot:spring-boot-restclient'
 	testCompileOnly 'org.projectlombok:lombok'
 	testAnnotationProcessor 'org.projectlombok:lombok'
 	testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+	testImplementation "io.grpc:grpc-inprocess:${grpcVersion}"  // InProcessServerBuilder para probar el cliente gRPC sin red real
 }
 
 tasks.named('test') {
 	useJUnitPlatform()
+}
+
+// Genera los stubs de gRPC/protobuf a partir de src/main/proto/*.proto (build/generated/source/proto).
+protobuf {
+	protoc {
+		artifact = "com.google.protobuf:protoc:${protobufVersion}"
+	}
+	plugins {
+		grpc {
+			artifact = "io.grpc:protoc-gen-grpc-java:${grpcVersion}"
+		}
+	}
+	generateProtoTasks {
+		all().configureEach {
+			plugins {
+				grpc {}
+			}
+		}
+	}
 }
 
 // Solo se publica el jar ejecutable de Spring Boot (evita el "-plain.jar").

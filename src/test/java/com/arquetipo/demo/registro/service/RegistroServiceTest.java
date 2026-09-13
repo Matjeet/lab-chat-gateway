@@ -1,105 +1,43 @@
 package com.arquetipo.demo.registro.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-import com.arquetipo.demo.registro.domain.Usuario;
-import com.arquetipo.demo.registro.mapper.UsuarioMapper;
-import com.arquetipo.demo.registro.repository.UsuarioRepository;
+import com.arquetipo.demo.registro.grpc.RegistroGrpcClient;
 import com.arquetipo.demo.registro.web.dto.RegistroRequest;
 import com.arquetipo.demo.registro.web.dto.RegistroResponse;
-import com.arquetipo.demo.common.exception.DuplicateResourceException;
+import java.time.Instant;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 
 @ExtendWith(MockitoExtension.class)
 class RegistroServiceTest {
 
 	@Mock
-	private UsuarioRepository repository;
+	private RegistroGrpcClient grpcClient;
 
 	private RegistroService service;
 
 	@BeforeEach
 	void setUp() {
-		service = new RegistroService(repository, new UsuarioMapper(), new BCryptPasswordEncoder());
-	}
-
-	private static RegistroRequest request() {
-		return new RegistroRequest("mateo", "Mateo@Example.com", "secretpass");
+		service = new RegistroService(grpcClient);
 	}
 
 	@Test
-	void registrar_hasheaContrasenaYNormalizaEmail() {
-		when(repository.existsByUsernameIgnoreCase("mateo")).thenReturn(false);
-		when(repository.existsByEmailIgnoreCase("mateo@example.com")).thenReturn(false);
-		when(repository.saveAndFlush(any(Usuario.class))).thenAnswer(inv -> {
-			Usuario u = inv.getArgument(0);
-			u.setId(1L);
-			return u;
-		});
+	void registrar_delegaEnElClienteGrpcYDevuelveSuRespuesta() {
+		RegistroRequest request = new RegistroRequest("mateo", "mateo@example.com", "Passw0rd!23");
+		RegistroResponse respuestaEsperada =
+				new RegistroResponse(1L, "mateo", "mateo@example.com", "password", true, Instant.now());
+		when(grpcClient.registrar(request)).thenReturn(respuestaEsperada);
 
-		RegistroResponse response = service.registrar(request());
+		RegistroResponse respuesta = service.registrar(request);
 
-		assertThat(response.id()).isEqualTo(1L);
-		assertThat(response.email()).isEqualTo("mateo@example.com");
-		assertThat(response.username()).isEqualTo("mateo");
-	}
-
-	@Test
-	void registrar_guardaHashNoLaContrasenaEnClaro() {
-		when(repository.existsByUsernameIgnoreCase("mateo")).thenReturn(false);
-		when(repository.existsByEmailIgnoreCase("mateo@example.com")).thenReturn(false);
-		when(repository.saveAndFlush(any(Usuario.class))).thenAnswer(inv -> inv.getArgument(0));
-
-		service.registrar(request());
-
-		org.mockito.ArgumentCaptor<Usuario> captor = org.mockito.ArgumentCaptor.forClass(Usuario.class);
-		org.mockito.Mockito.verify(repository).saveAndFlush(captor.capture());
-		Usuario persistido = captor.getValue();
-		assertThat(persistido.getPasswordHash())
-				.isNotEqualTo("secretpass")
-				.startsWith("$2");
-		assertThat(new BCryptPasswordEncoder().matches("secretpass", persistido.getPasswordHash())).isTrue();
-	}
-
-	private static final String MENSAJE_GENERICO =
-			"No se pudo completar el registro con los datos proporcionados";
-
-	@Test
-	void registrar_usernameDuplicado_lanzaConflictoGenerico() {
-		when(repository.existsByUsernameIgnoreCase("mateo")).thenReturn(true);
-
-		assertThatThrownBy(() -> service.registrar(request()))
-				.isInstanceOf(DuplicateResourceException.class)
-				.hasMessage(MENSAJE_GENERICO);
-	}
-
-	@Test
-	void registrar_emailDuplicado_lanzaMismoConflictoGenerico() {
-		when(repository.existsByUsernameIgnoreCase("mateo")).thenReturn(false);
-		when(repository.existsByEmailIgnoreCase("mateo@example.com")).thenReturn(true);
-
-		assertThatThrownBy(() -> service.registrar(request()))
-				.isInstanceOf(DuplicateResourceException.class)
-				.hasMessage(MENSAJE_GENERICO);
-	}
-
-	@Test
-	void registrar_carreraEnInsert_lanzaMismoConflictoGenerico() {
-		when(repository.existsByUsernameIgnoreCase("mateo")).thenReturn(false);
-		when(repository.existsByEmailIgnoreCase("mateo@example.com")).thenReturn(false);
-		when(repository.saveAndFlush(any(Usuario.class)))
-				.thenThrow(new org.springframework.dao.DataIntegrityViolationException("uk_usuarios_email"));
-
-		assertThatThrownBy(() -> service.registrar(request()))
-				.isInstanceOf(DuplicateResourceException.class)
-				.hasMessage(MENSAJE_GENERICO);
+		assertThat(respuesta).isEqualTo(respuestaEsperada);
+		verify(grpcClient).registrar(any());
 	}
 }

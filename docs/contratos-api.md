@@ -1,7 +1,18 @@
-# Contratos de API — chat-registro
+# Contratos de API — chat-gateway
 
-Referencia de los endpoints HTTP que expone el microservicio **chat-registro**, pensada para
-que un cliente (frontend web, app móvil, otro servicio) los consuma sin leer el código.
+Referencia de los endpoints HTTP que expone **chat-gateway**, pensada para que un cliente
+(frontend web, app móvil) los consuma sin leer el código.
+
+> **Quién atiende esta petición.** Como cliente, hablas siempre con el gateway por REST — es
+> el único servicio con el que el cliente tiene contacto directo. El gateway no implementa
+> ninguna regla de negocio: valida el formato del cuerpo y reenvía la petición al
+> microservicio correspondiente por **gRPC** (protocolo interno, no expuesto al cliente). Para
+> el endpoint de abajo, el destino es **`chat-registro`**; su contrato gRPC (para quien quiera
+> integrarlo directamente, sin pasar por el gateway) está en
+> `chat-registro/docs/contrato-grpc-registro.md`. El JSON que ves aquí es exactamente el mismo
+> que documentaba `chat-registro` cuando se llamaba directo — este cambio no afecta a ningún
+> cliente ya integrado, solo cambia el host al que apunta `NEXT_PUBLIC_API_BASE_URL` (o
+> equivalente): ahora es el del gateway, no el de `chat-registro`.
 
 La fuente de verdad ejecutable es la especificación **OpenAPI** que genera el propio
 servicio; este documento la resume y añade las notas de integración que no caben en las
@@ -21,15 +32,15 @@ anotaciones.
 | Formato de errores | `application/problem+json` (RFC 9457) |
 | Codificación | UTF-8 |
 | Fechas y horas | ISO-8601 en UTC, con precisión de microsegundos — ej. `2026-09-09T03:13:36.766818Z` |
-| Autenticación | **Ninguna** por ahora. El registro es un endpoint público. |
-| CORS | No configurado en el servicio; se resuelve en el API gateway / reverse proxy. |
+| Autenticación | Ninguna exigida hoy por `POST /api/v1/registro` (es el propio alta). |
+| CORS | Habilitado para `/api/**` en el propio gateway (no en cada microservicio). Orígenes permitidos vía `CORS_ALLOWED_ORIGINS` (lista separada por comas). |
 
 ### Entornos
 
 | Entorno | Base URL |
 |---|---|
 | Local | `http://localhost:8080` |
-| Otros | definidos por infraestructura (el servicio escucha en el puerto `8080`) |
+| Otros | definidos por infraestructura (el gateway escucha en el puerto `8080`) |
 
 ---
 
@@ -64,10 +75,10 @@ cuerpo:
 | `type` | HTTP | Cuándo |
 |---|---|---|
 | `urn:problem-type:validation-error` | 400 | El cuerpo no cumple las reglas de formato. Incluye `errors[]`. |
-| `urn:problem-type:duplicate-resource` | 409 | Los datos entran en conflicto con un recurso existente. |
-| `urn:problem-type:data-integrity` | 409 | Violación de una restricción de integridad en base de datos. |
+| `urn:problem-type:duplicate-resource` | 409 | Los datos entran en conflicto con un usuario existente (local o ya registrado en el proveedor de identidad). |
 | `urn:problem-type:resource-not-found` | 404 | El recurso solicitado no existe. (Sin uso en los endpoints actuales.) |
-| `urn:problem-type:internal-error` | 500 | Error inesperado. `detail` siempre genérico; el detalle real queda en logs del servidor. |
+| `urn:problem-type:service-unavailable` | 503 | El microservicio destino (p. ej. `chat-registro`) no está disponible. **Propio del gateway**: `chat-registro` en solitario nunca lo devuelve. |
+| `urn:problem-type:internal-error` | 500 | Error inesperado, incluido un fallo del microservicio destino que no sea "ya existe" ni "no disponible". `detail` siempre genérico; el detalle real queda en logs del servidor. |
 
 ---
 
@@ -75,7 +86,9 @@ cuerpo:
 
 ### 3.1 `POST /api/v1/registro` — Registrar un usuario
 
-Da de alta un usuario nuevo.
+Registra un usuario nuevo. El gateway valida el formato del cuerpo y reenvía la petición por
+gRPC a `chat-registro`, que es quien crea la cuenta en el proveedor de identidad (Firebase
+Auth) y persiste el perfil.
 
 #### Petición
 
@@ -84,7 +97,7 @@ Da de alta un usuario nuevo.
 | Método | `POST` |
 | Path | `/api/v1/registro` |
 | Headers | `Content-Type: application/json` |
-| Autenticación | No |
+| Autenticación | Ninguna |
 
 Cuerpo:
 
@@ -92,7 +105,7 @@ Cuerpo:
 {
   "username": "mateo",
   "email": "mateo@example.com",
-  "password": "secretpass"
+  "password": "Passw0rd!23"
 }
 ```
 
@@ -100,9 +113,10 @@ Cuerpo:
 |---|---|---|---|
 | `username` | string | sí | 3–50 caracteres. Solo `A–Z a–z 0–9 . _ -`. Único (sin distinguir mayúsculas). |
 | `email` | string | sí | Formato de email válido. Máx. 255 caracteres. Único (sin distinguir mayúsculas). Se normaliza a minúsculas antes de guardar. |
-| `password` | string | sí | 8–100 caracteres. Se almacena solo como hash BCrypt; **nunca** se devuelve. |
+| `password` | string | sí | 8–20 caracteres. Al menos una mayúscula, una minúscula, un número y un carácter especial (cualquiera que no sea letra, número o espacio). Ningún carácter repetido 4 o más veces seguidas (`aaaa` invalido, `aaa` válido). El gateway solo la transporta: no la persiste ni la loguea en ningún punto. |
 
-Se ignora cualquier campo extra del cuerpo.
+Se ignora cualquier campo extra del cuerpo (p. ej. un `uid` o `proveedor`: ninguno de los dos
+es un campo de la petición — el servidor los determina él mismo).
 
 #### Respuesta `201 Created`
 
@@ -113,6 +127,7 @@ Se ignora cualquier campo extra del cuerpo.
   "id": 1,
   "username": "mateo",
   "email": "mateo@example.com",
+  "proveedor": "password",
   "activo": true,
   "createdAt": "2026-09-09T03:13:36.766818Z"
 }
@@ -123,10 +138,9 @@ Se ignora cualquier campo extra del cuerpo.
 | `id` | number | Identificador asignado por el servidor. |
 | `username` | string | Tal cual se envió (recortando espacios). |
 | `email` | string | Normalizado a minúsculas. |
+| `proveedor` | string | Proveedor de identidad usado en el alta (hoy siempre `"password"`). |
 | `activo` | boolean | Siempre `true` en un alta nueva. |
 | `createdAt` | string (ISO-8601) | Instante de creación en UTC. |
-
-> No se devuelve cabecera `Location` en esta versión.
 
 #### Respuesta `400 Bad Request` — validación
 
@@ -144,20 +158,19 @@ que falló:
   "errors": [
     { "field": "username", "message": "el tamaño debe estar entre 3 y 50" },
     { "field": "email", "message": "debe ser una dirección de correo electrónico con formato correcto" },
-    { "field": "password", "message": "el tamaño debe estar entre 8 y 100" }
+    { "field": "password", "message": "debe tener mayuscula, minuscula, numero y caracter especial, y ningun caracter repetido 4 o mas veces seguidas" }
   ]
 }
 ```
 
-- `errors[].field` es el nombre del campo del cuerpo (`username`, `email`, `password`) — úsalo
-  para marcar el input correspondiente en el formulario.
-- `errors[].message` es **orientativo** (texto por defecto de Bean Validation, puede variar
-  según el idioma del servidor). El frontend debería mostrar sus propios textos a partir de
-  `field` y las reglas de esta tabla, no confiar en `message` palabra por palabra.
+`errors[].field` es el nombre del campo del cuerpo; `errors[].message` es orientativo (texto
+por defecto de Bean Validation). El gateway aplica estas reglas **antes** de llamar por gRPC —
+en el caso normal, este 400 nunca llega a `chat-registro`.
 
 #### Respuesta `409 Conflict` — el usuario ya existe
 
-`type` = `urn:problem-type:duplicate-resource`.
+`type` = `urn:problem-type:duplicate-resource`. **Por seguridad, siempre el mismo mensaje
+genérico**, sin indicar qué campo colisionó:
 
 ```json
 {
@@ -170,21 +183,33 @@ que falló:
 }
 ```
 
-> **Por seguridad, el `409` es deliberadamente genérico.** No indica si colisionó el
-> `username` o el `email`, ni devuelve el valor enviado, para no permitir enumerar cuentas.
-> El frontend debe mostrar un mensaje del tipo *"No se pudo completar el registro. Revisa los
-> datos e inténtalo de nuevo."* y **no** intentar deducir qué campo falló.
+#### Respuesta `503 Service Unavailable` — chat-registro no disponible
+
+`type` = `urn:problem-type:service-unavailable`. El gateway no pudo alcanzar `chat-registro`
+por gRPC (servicio caído, red interna). Reintentable con backoff.
+
+```json
+{
+  "type": "urn:problem-type:service-unavailable",
+  "title": "Servicio no disponible",
+  "status": 503,
+  "detail": "El servicio no esta disponible en este momento. Intentelo mas tarde.",
+  "instance": "/api/v1/registro",
+  "timestamp": "2026-09-09T03:10:00.123456Z"
+}
+```
 
 #### Respuesta `500 Internal Server Error`
 
-`type` = `urn:problem-type:internal-error`, `detail` genérico. Reintentable con backoff.
+`type` = `urn:problem-type:internal-error`, `detail` genérico. Cualquier otro fallo no
+cubierto arriba. Reintentable con backoff.
 
 #### Ejemplo `curl`
 
 ```bash
 curl -i -X POST http://localhost:8080/api/v1/registro \
   -H 'Content-Type: application/json' \
-  -d '{"username":"mateo","email":"mateo@example.com","password":"secretpass"}'
+  -d '{"username":"mateo","email":"mateo@example.com","password":"Passw0rd!23"}'
 ```
 
 ---
@@ -194,13 +219,17 @@ curl -i -X POST http://localhost:8080/api/v1/registro \
 1. **Ramifica por `type`, no por `status` ni por textos.** `title`/`detail` pueden cambiar de
    redacción sin previo aviso; `type` y `status` son estables.
 2. **El `409` no dice qué campo colisiona.** Es intencional. Mensaje genérico en la UI.
-3. **`password` nunca vuelve en ninguna respuesta.** No lo guardes ni lo muestres tras el alta.
+3. **La contraseña nunca vuelve en ninguna respuesta.** No la guardes ni la muestres tras el
+   alta.
 4. **El `email` se normaliza a minúsculas** en el servidor; si tu UI lo muestra tras el alta,
    usa el valor devuelto en la respuesta, no el que tecleó el usuario.
-5. **Validación en cliente = espejo de la tabla de §3.1**, para feedback inmediato; la
-   validación del servidor es la autoritativa y devuelve `400` con `errors[]`.
-6. **Unicidad de `username`/`email` no se puede pre-comprobar** (no hay endpoint para ello,
-   también por el tema de enumeración). Se descubre al recibir el `409` del `POST`.
+5. **Valida la contraseña en el cliente con las mismas reglas de §3.1** para dar feedback
+   inmediato; la validación del servidor es la autoritativa y devuelve `400` con `errors[]`.
+6. **Unicidad de `username`/`email` no se puede pre-comprobar.** Se descubre al recibir el
+   `409` del `POST`.
+7. **Un `503` es distinto de un `500`.** El primero significa "el servicio destino está caído,
+   probablemente reintentable pronto"; el segundo es un fallo inesperado. Trátalos distinto en
+   la UI si tu app diferencia "servicio en mantenimiento" de "algo salió mal".
 
 ---
 
@@ -211,7 +240,7 @@ curl -i -X POST http://localhost:8080/api/v1/registro \
 export interface RegistroRequest {
   username: string; // 3–50, /^[A-Za-z0-9._-]+$/
   email: string;    // email válido, <= 255
-  password: string; // 8–100
+  password: string; // 8–20; mayuscula + minuscula + numero + especial; sin 4+ repetidos
 }
 
 // Respuesta 201
@@ -219,6 +248,7 @@ export interface RegistroResponse {
   id: number;
   username: string;
   email: string;
+  proveedor: string; // hoy siempre "password"
   activo: boolean;
   createdAt: string; // ISO-8601 UTC
 }
@@ -242,7 +272,22 @@ export interface FieldError {
 
 ---
 
-## 6. Otros recursos del servicio
+## 6. Cómo funciona por dentro
+
+`RegistroController` valida el cuerpo (Bean Validation, mismas reglas que `chat-registro`) y
+delega en `RegistroService`, que llama a `RegistroGrpcClient`. Ese cliente traduce el DTO a
+`RegistrarUsuarioRequest` (proto), invoca `RegistroGrpcService/Registrar` en `chat-registro`
+y traduce la respuesta o el error de vuelta al mismo formato REST. La orquestación real (alta
+en el proveedor de identidad, reconciliación, compensación) vive en `chat-registro` — ver su
+`docs/contratos-api.md` §6 — y es idéntica se llegue por REST directo o, como ahora, a través
+de este gateway.
+
+Ver también [`arquitectura-gateway.md`](arquitectura-gateway.md) para cómo se añade un
+microservicio nuevo al gateway.
+
+---
+
+## 7. Otros recursos del servicio
 
 | Recurso | Path | Uso |
 |---|---|---|
@@ -252,8 +297,9 @@ export interface FieldError {
 
 ---
 
-## 7. Control de versiones de este documento
+## 8. Control de versiones de este documento
 
 | Fecha | Cambio |
 |---|---|
-| 2026-09-09 | Versión inicial: `POST /api/v1/registro`. |
+| 2026-09-13 | `chat-gateway` pasa a ser el punto de entrada REST; el contrato de `POST /api/v1/registro` no cambia para el cliente, pero ahora lo sirve el gateway (reenvío por gRPC a `chat-registro`). Se documenta el nuevo `503 service-unavailable`, propio del gateway. |
+| (anterior) | Historial de cuando `chat-registro` se llamaba directo: ver `chat-registro/docs/contratos-api.md` §8. |

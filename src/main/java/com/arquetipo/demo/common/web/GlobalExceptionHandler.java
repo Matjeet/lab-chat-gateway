@@ -2,12 +2,13 @@ package com.arquetipo.demo.common.web;
 
 import com.arquetipo.demo.common.exception.DuplicateResourceException;
 import com.arquetipo.demo.common.exception.ResourceNotFoundException;
+import com.arquetipo.demo.common.exception.ServiceUnavailableException;
+import com.arquetipo.demo.common.exception.ValidationException;
 import java.net.URI;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.HttpStatusCode;
@@ -40,11 +41,23 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
 		return problem(HttpStatus.CONFLICT, "Recurso duplicado", ex.getMessage(), "duplicate-resource");
 	}
 
-	@ExceptionHandler(DataIntegrityViolationException.class)
-	public ProblemDetail handleDataIntegrity(DataIntegrityViolationException ex) {
-		log.warn("Violacion de integridad de datos", ex);
-		return problem(HttpStatus.CONFLICT, "Conflicto de datos",
-				"La operacion viola una restriccion de integridad", "data-integrity");
+	@ExceptionHandler(ValidationException.class)
+	public ProblemDetail handleValidation(ValidationException ex) {
+		ProblemDetail body = problem(HttpStatus.BAD_REQUEST, "Datos invalidos",
+				"El cuerpo de la peticion no supero la validacion", "validation-error");
+		List<Map<String, String>> errores = ex.getErrores().stream()
+				.map(fe -> Map.of("field", fe.field(), "message", fe.message()))
+				.toList();
+		body.setProperty("errors", errores);
+		return body;
+	}
+
+	@ExceptionHandler(ServiceUnavailableException.class)
+	public ProblemDetail handleServiceUnavailable(ServiceUnavailableException ex) {
+		log.warn(ex.getMessage());
+		return problem(HttpStatus.SERVICE_UNAVAILABLE, "Servicio no disponible",
+				"El servicio no esta disponible en este momento. Intentelo mas tarde.",
+				"service-unavailable");
 	}
 
 	@ExceptionHandler(Exception.class)
