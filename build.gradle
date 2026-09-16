@@ -88,11 +88,26 @@ protobuf {
 	}
 	generateProtoTasks {
 		all().configureEach {
+			// El plugin com.google.protobuf (0.9.6) todavia no soporta la configuration
+			// cache de Gradle: GenerateProtoTask/ProtobufExtract guardan una referencia a
+			// Project/SourceDirectorySet que Gradle no puede serializar, y sin este aviso
+			// explicito la build revienta ("Configuration cache entry discarded with N
+			// problems") en vez de simplemente no cachear estas tareas. Quitar esto en
+			// cuanto el plugin declare soporte para configuration cache.
+			notCompatibleWithConfigurationCache(
+					"com.google.protobuf gradle plugin no soporta aun la configuration cache")
 			plugins {
 				grpc {}
 			}
 		}
 	}
+}
+
+// Mismo problema que arriba pero para el otro tipo de tarea del plugin (:extractProto,
+// :extractIncludeProto, ...), que no pasa por generateProtoTasks.
+tasks.withType(com.google.protobuf.gradle.ProtobufExtract).configureEach {
+	notCompatibleWithConfigurationCache(
+			"com.google.protobuf gradle plugin no soporta aun la configuration cache")
 }
 
 // Solo se publica el jar ejecutable de Spring Boot (evita el "-plain.jar").
