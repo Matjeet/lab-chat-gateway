@@ -1,7 +1,10 @@
-# Contratos de API — chat-gateway
+# Contratos de API — chat-gateway (registro de usuarios)
 
-Referencia de los endpoints HTTP que expone **chat-gateway**, pensada para que un cliente
-(frontend web, app móvil) los consuma sin leer el código.
+Referencia del endpoint de **registro de usuarios** que expone **chat-gateway**, pensada para
+que un cliente (frontend web, app móvil) lo consuma sin leer el código.
+
+> Este documento cubre solo el registro (`POST /api/v1/registro`). Para el chat en tiempo real
+> (WebSocket + historial), ver [`contratos-api-conversacion.md`](contratos-api-conversacion.md).
 
 > **Quién atiende esta petición.** Como cliente, hablas siempre con el gateway por REST — es
 > el único servicio con el que el cliente tiene contacto directo. El gateway no implementa

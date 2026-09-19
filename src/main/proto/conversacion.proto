@@ -1,0 +1,71 @@
+syntax = "proto3";
+
+package com.arquetipo.demo.conversacion.grpc;
+
+option java_multiple_files = true;
+option java_package = "com.arquetipo.demo.conversacion.grpc";
+option java_outer_classname = "ConversacionProto";
+
+// Copia exacta del contrato publicado por chat-conversacion en su
+// docs/contrato-grpc-conversacion.md §2. No modificar aqui: un cambio de contrato lo decide
+// chat-conversacion y se refleja copiando de nuevo ese archivo.
+service ConversacionGrpcService {
+
+  // Bidi streaming: equivalente gRPC del WebSocket. El cliente se identifica con la cabecera
+  // de metadata "usuario" (el username de chat-registro, mismo formato que exige el
+  // WebSocket) al abrir el stream — no en cada mensaje, es el remitente de todo el stream.
+  // Cada MensajeSaliente que el cliente manda se valida, se persiste y se reenvia como
+  // MensajeEntregado tanto al propio remitente (confirmacion) como al destinatario, si esta
+  // conectado por cualquiera de los tres protocolos. Un mensaje invalido (destinatario/
+  // contenido que no cumplen las reglas) se descarta en silencio, igual que en el WebSocket.
+  rpc Chat (stream MensajeSaliente) returns (stream MensajeEntregado);
+
+  // Historial paginado de una conversacion, equivalente a
+  // GET /api/v1/conversaciones/{usuarioA}/{usuarioB}. Unario, sin streaming.
+  rpc Historial (HistorialRequest) returns (HistorialResponse);
+}
+
+// Lo que manda el cliente por el stream de Chat. El remitente no viaja aqui: lo determina la
+// cabecera de metadata "usuario" del stream completo (ver arriba).
+message MensajeSaliente {
+  // Username de chat-registro del destinatario. 3-50 caracteres, solo A-Z a-z 0-9 . _ -
+  string destinatario = 1;
+  // Texto del mensaje. No vacio, maximo 2000 caracteres.
+  string contenido = 2;
+}
+
+// Mensaje ya persistido: es lo que llega por el stream de Chat (al remitente y al
+// destinatario) y lo que lista el historial.
+message MensajeEntregado {
+  string id = 1;
+  string remitente = 2;
+  string destinatario = 3;
+  string contenido = 4;
+  // Instante de envio en UTC, ISO-8601 (ej. "2026-09-18T20:53:47.441193Z"). Se manda como
+  // string, no como google.protobuf.Timestamp, para no forzar esa dependencia en el cliente.
+  string enviado_en = 5;
+}
+
+message HistorialRequest {
+  string usuario_a = 1;
+  string usuario_b = 2;
+  // 0-indexada, igual que el REST. Un valor negativo se trata como 0.
+  int32 page = 3;
+  // 0 (o ausente) usa el default del servidor (20); se recorta al maximo (100), igual que el
+  // REST.
+  int32 size = 4;
+  // Opcional, formato "campo,direccion" (ej. "enviadoEn,desc"). Vacio = "enviadoEn,asc", el
+  // mismo default del REST. Campos validos: id, remitente, destinatario, contenido, enviadoEn.
+  string sort = 5;
+}
+
+message HistorialResponse {
+  repeated MensajeEntregado content = 1;
+  int32 page = 2;
+  int32 size = 3;
+  int64 total_elements = 4;
+  int32 total_pages = 5;
+  bool first = 6;
+  bool last = 7;
+  bool empty = 8;
+}
