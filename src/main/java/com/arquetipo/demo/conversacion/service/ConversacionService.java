@@ -1,6 +1,8 @@
 package com.arquetipo.demo.conversacion.service;
 
 import com.arquetipo.demo.conversacion.grpc.ConversacionGrpcClient;
+import com.arquetipo.demo.conversacion.web.dto.ChatResumen;
+import com.arquetipo.demo.conversacion.web.dto.CursorPage;
 import com.arquetipo.demo.conversacion.web.dto.MensajeEntrante;
 import com.arquetipo.demo.conversacion.web.dto.MensajeResponse;
 import com.arquetipo.demo.conversacion.web.dto.PageResponse;
@@ -35,6 +37,13 @@ public class ConversacionService {
 		log.debug(">> historial(usuarioA='{}', usuarioB='{}', page={}, size={})", usuarioA, usuarioB, page, size);
 		PageResponse<MensajeResponse> respuesta = grpcClient.historial(usuarioA, usuarioB, page, size, sort);
 		log.debug("<< historial() -> OK, totalElements={}", respuesta.totalElements());
+		return respuesta;
+	}
+
+	public CursorPage<ChatResumen> listaChats(String usuario, String cursor, int size) {
+		log.debug(">> listaChats(usuario='{}', conCursor={}, size={})", usuario, cursor != null && !cursor.isBlank(), size);
+		CursorPage<ChatResumen> respuesta = grpcClient.listaChats(usuario, cursor, size);
+		log.debug("<< listaChats() -> OK, chats={}, hasMore={}", respuesta.content().size(), respuesta.hasMore());
 		return respuesta;
 	}
 }

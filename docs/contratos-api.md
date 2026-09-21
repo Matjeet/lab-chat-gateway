@@ -1,8 +1,8 @@
 # Contratos de API — chat-gateway
 
 Referencia de **todo** lo que expone **chat-gateway** al cliente (frontend web, app móvil):
-registro de usuarios, chat en tiempo real (WebSocket + historial) y consulta de datos de
-usuario. Pensada para consumirse sin leer el código.
+registro de usuarios, chat en tiempo real (WebSocket + historial + lista de chats) y consulta
+de datos de usuario. Pensada para consumirse sin leer el código.
 
 > **Quién atiende cada petición.** Como cliente, hablas siempre con el gateway — por REST o,
 > para el chat, por WebSocket — nunca directo con los microservicios. El gateway no implementa
@@ -15,12 +15,16 @@ usuario. Pensada para consumirse sin leer el código.
 > | `GET /api/v1/usuarios/{uid}` | `chat-registro` | `RegistroGrpcService/BuscarUsuarioPorUid` (unario) | ídem |
 > | `GET /ws/chat/{usuario}` | `chat-conversacion` | `ConversacionGrpcService/Chat` (bidi streaming) | `chat-conversacion/docs/contrato-grpc-conversacion.md` |
 > | `GET /api/v1/conversaciones/{usuarioA}/{usuarioB}` | `chat-conversacion` | `ConversacionGrpcService/Historial` (unario) | ídem |
+> | `GET /api/v1/conversaciones/{usuario}/chats` | `chat-conversacion` | `ConversacionGrpcService/ListaChats` (unario) | ídem |
 >
 > El JSON de `POST /api/v1/registro` es exactamente el mismo que documentaba `chat-registro`
 > cuando se llamaba directo, y el de `/ws/chat/**`/`/api/v1/conversaciones/**` el mismo que
 > documentaba `chat-conversacion` — este cambio de arquitectura no afecta a ningún cliente ya
 > integrado, solo cambia el host al que apunta `NEXT_PUBLIC_API_BASE_URL` (o equivalente):
-> ahora es el del gateway.
+> ahora es el del gateway. `GET /api/v1/conversaciones/{usuario}/chats` es la excepción: no
+> tiene versión "original" en `chat-conversacion` (`ListaChats` nació como rpc gRPC sin
+> equivalente REST, ver `chat-conversacion/docs/contrato-grpc-conversacion.md` §5) — este
+> gateway es quien primero lo expone por REST.
 
 La fuente de verdad ejecutable del REST es la especificación **OpenAPI** que genera el propio
 servicio (el WebSocket no aparece ahí, Swagger no lo documenta); este documento la resume y
@@ -40,7 +44,7 @@ añade las notas de integración que no caben en las anotaciones.
 | Formato de errores (REST) | `application/problem+json` (RFC 9457) — el WebSocket no lo usa, ver §3 |
 | Codificación | UTF-8 |
 | Fechas y horas | ISO-8601 en UTC, con precisión de microsegundos — ej. `2026-09-09T03:13:36.766818Z` |
-| Autenticación | Ninguna en `POST /api/v1/registro`, `GET /ws/chat/**` ni `GET /api/v1/conversaciones/**`. `GET /api/v1/usuarios/{uid}` es la única excepción — exige `Authorization: Bearer <idToken>`, ver §4.4. |
+| Autenticación | Ninguna en `POST /api/v1/registro`, `GET /ws/chat/**` ni `GET /api/v1/conversaciones/**` (incluida `/chats`). `GET /api/v1/usuarios/{uid}` es la única excepción — exige `Authorization: Bearer <idToken>`, ver §4.2. |
 | CORS (endpoints REST) | Habilitado para `/api/**` en el propio gateway (no en cada microservicio). Orígenes permitidos vía `CORS_ALLOWED_ORIGINS` (lista separada por comas). |
 | Orígenes permitidos (WebSocket) | `WEBSOCKET_ALLOWED_ORIGINS` (lista separada por comas). Variable **independiente** de `CORS_ALLOWED_ORIGINS`: el *handshake* de WebSocket no pasa por CORS. |
 
@@ -83,7 +87,7 @@ Toda respuesta con código `4xx` o `5xx` de un endpoint REST tiene
 
 | `type` | HTTP | Cuándo | Endpoints donde aplica |
 |---|---|---|---|
-| `urn:problem-type:validation-error` | 400 | El cuerpo no cumple las reglas de formato. Incluye `errors[]`. | `POST /api/v1/registro` |
+| `urn:problem-type:validation-error` | 400 | El cuerpo no cumple las reglas de formato (incluye `errors[]`, vacío si el error no es de un campo concreto — ver `cursor` en `GET /api/v1/conversaciones/{usuario}/chats`). | `POST /api/v1/registro`, `GET /api/v1/conversaciones/{usuario}/chats` |
 | `urn:problem-type:duplicate-resource` | 409 | Los datos entran en conflicto con un usuario existente. | `POST /api/v1/registro` |
 | `urn:problem-type:unauthorized` | 401 | Falta la cabecera `Authorization`, o el `idToken` es inválido/expirado. | `GET /api/v1/usuarios/{uid}` |
 | `urn:problem-type:forbidden` | 403 | El `idToken` es válido pero de un uid distinto al pedido. | `GET /api/v1/usuarios/{uid}` |
@@ -450,6 +454,73 @@ curl "http://localhost:8080/api/v1/conversaciones/mateo/ana?page=0&size=20&sort=
 
 ---
 
+### 4.5 `GET /api/v1/conversaciones/{usuario}/chats` — Lista de chats de un usuario
+
+Un resumen por cada persona con la que `usuario` tiene al menos un mensaje (en cualquiera de
+los dos sentidos), con el último mensaje de esa conversación, ordenados por fecha de ese
+último mensaje (más reciente primero). Enrutado por una llamada unaria
+`ConversacionGrpcService/ListaChats`. **No existía antes de este gateway**: nació directo
+como rpc gRPC en `chat-conversacion` (sin equivalente REST ni WebSocket), y este es el primer
+lugar donde se expone por REST.
+
+> Convive con `GET /api/v1/conversaciones/{usuarioA}/{usuarioB}` (§4.4) sin ambigüedad de
+> rutas: el segmento final `chats` es literal, y Spring prioriza un segmento literal sobre uno
+> con variable (`{usuarioB}`) al resolver una petición concreta.
+
+#### Petición
+
+| | |
+|---|---|
+| Método | `GET` |
+| Path | `/api/v1/conversaciones/{usuario}/chats` |
+| Query params | `cursor` (opcional; el `nextCursor` de una página anterior, vacío = primera página), `size` (por defecto `20`, máx. `100`) |
+| Autenticación | Ninguna |
+
+> **Paginado por cursor, no por página/offset** — a propósito, porque el orden de la lista
+> cambia con cada mensaje nuevo (un offset se desincroniza). Manda `cursor` tal cual llegó en
+> `nextCursor`, sin parsearlo ni construirlo a mano: es opaco. Ver
+> `chat-conversacion/docs/contrato-grpc-conversacion.md` §5.1 para el porqué.
+
+#### Respuesta `200 OK`
+
+```json
+{
+  "content": [
+    {
+      "otroUsuario": "ana",
+      "ultimoMensaje": {
+        "id": "66f1c2a8b4c9a12345678901",
+        "remitente": "mateo",
+        "destinatario": "ana",
+        "contenido": "Hola!",
+        "enviadoEn": "2026-09-15T20:53:47.441193Z"
+      }
+    }
+  ],
+  "nextCursor": "MjAyNi0wOS0xNVQyMDo1Mzo0Ny40NDExOTNafDY2ZjFjMmE4YjRjOWExMjM0NTY3ODkwMQ",
+  "hasMore": false
+}
+```
+
+Sin chats: `200` con `content: []`, `hasMore: false` — nunca `404`. **`nextCursor` viene
+vacío cuando `hasMore` es `false`**: no lo mandes de vuelta en ese caso, no hay garantía de
+que siga siendo válido.
+
+#### Respuesta `400 Bad Request` — cursor inválido
+
+Un `cursor` que no viene de un `nextCursor` real de `chat-conversacion` (formato corrupto o
+inventado) responde `400` con `type: urn:problem-type:validation-error` y `errors: []` (el
+error no es de un campo del cuerpo, es del propio parámetro `cursor` — `detail` trae el
+mensaje real en este caso concreto).
+
+#### Ejemplo `curl`
+
+```bash
+curl "http://localhost:8080/api/v1/conversaciones/mateo/chats?size=20"
+```
+
+---
+
 ## 5. Notas de integración para el frontend
 
 1. **Ramifica por `type`, no por `status` ni por textos.** `title`/`detail` pueden cambiar de
@@ -480,8 +551,13 @@ curl "http://localhost:8080/api/v1/conversaciones/mateo/ana?page=0&size=20&sort=
     en el cliente antes de mandar (§4.3); no hay *frame* de error.
 12. **Carga el historial por REST al abrir la pantalla de chat, y luego conéctate al
     WebSocket** para los mensajes nuevos: son dos canales independientes.
-13. **No hay autenticación en el chat todavía** (`GET /ws/chat/**`, `GET /api/v1/conversaciones/**`)
-    — no trates ese flujo como seguro para datos reales hasta que se resuelva (ver `CLAUDE.md`).
+13. **No hay autenticación en el chat todavía** (`GET /ws/chat/**`, `GET /api/v1/conversaciones/**`,
+    incluida `/chats`) — no trates ese flujo como seguro para datos reales hasta que se
+    resuelva (ver `CLAUDE.md`).
+14. **`GET /api/v1/conversaciones/{usuario}/chats` es la pantalla de "conversaciones", no el
+    chat en sí.** Úsalo para listar con quién ha hablado `usuario` y el último mensaje de cada
+    uno (p. ej. al abrir la app); abre el WebSocket (§4.3) o pide el historial (§4.4) solo
+    cuando el usuario entra a un chat concreto.
 
 ---
 
@@ -535,6 +611,18 @@ export interface PageResponse<T> {
   empty: boolean;
 }
 
+// --- Lista de chats (§4.5) ---
+export interface ChatResumen {
+  otroUsuario: string;
+  ultimoMensaje: MensajeResponse;
+}
+
+export interface CursorPage<T> {
+  content: T[];
+  nextCursor: string; // vacio si hasMore es false; no lo reenvies en ese caso
+  hasMore: boolean;
+}
+
 // --- Error RFC 9457 (cualquier 4xx/5xx de un endpoint REST) ---
 export interface ProblemDetail {
   type: string;      // "urn:problem-type:*"
@@ -568,15 +656,16 @@ negocio propia (esa vive en el microservicio destino):
   `arquitectura-gateway.md`) para verificar el `idToken` con la integración propia del gateway
   con Firebase, compara el uid autenticado contra el `{uid}` pedido, y solo entonces delega en
   `RegistroService` — a `chat-registro` le llega el `uid` desnudo, sin ningún token.
-- **`conversacion/`** (`GET /ws/chat/{usuario}`, `GET /api/v1/conversaciones/{usuarioA}/{usuarioB}`):
-  `ChatWebSocketHandler` abre, al conectarse una sesión, un stream `Chat` de gRPC hacia
-  `chat-conversacion` vía `ConversacionService.abrirChat` → `ConversacionGrpcClient` — la
-  cabecera de metadata `usuario` la manda el gateway con el mismo `{usuario}` que validó
-  `UsuarioHandshakeInterceptor` al conectar. Cada frame de texto entrante se valida y se
-  reenvía por el stream; cada `MensajeEntregado` que llega por el stream se traduce a JSON y se
-  manda por el socket. El historial sigue el mismo patrón unario que el registro:
-  `ConversacionController` → `ConversacionService` → `ConversacionGrpcClient` (llamada
-  `Historial`).
+- **`conversacion/`** (`GET /ws/chat/{usuario}`, `GET /api/v1/conversaciones/{usuarioA}/{usuarioB}`,
+  `GET /api/v1/conversaciones/{usuario}/chats`): `ChatWebSocketHandler` abre, al conectarse una
+  sesión, un stream `Chat` de gRPC hacia `chat-conversacion` vía `ConversacionService.abrirChat`
+  → `ConversacionGrpcClient` — la cabecera de metadata `usuario` la manda el gateway con el
+  mismo `{usuario}` que validó `UsuarioHandshakeInterceptor` al conectar. Cada frame de texto
+  entrante se valida y se reenvía por el stream; cada `MensajeEntregado` que llega por el
+  stream se traduce a JSON y se manda por el socket. El historial y la lista de chats siguen el
+  mismo patrón unario que el registro: `ConversacionController` → `ConversacionService` →
+  `ConversacionGrpcClient` (llamadas `Historial`/`ListaChats`) — el `cursor` de esta última
+  viaja tal cual, sin decodificarlo: solo `chat-conversacion` sabe interpretarlo.
 
 Ver también [`arquitectura-gateway.md`](arquitectura-gateway.md) para el patrón completo y
 cómo se añade un microservicio nuevo al gateway.
@@ -597,6 +686,7 @@ cómo se añade un microservicio nuevo al gateway.
 
 | Fecha | Cambio |
 |---|---|
+| 2026-09-20 (3) | Se añade `GET /api/v1/conversaciones/{usuario}/chats`, enrutando por gRPC a `ConversacionGrpcService/ListaChats` — primer endpoint REST del gateway sin equivalente previo en `chat-conversacion` (paginado por cursor, no por página/offset). |
 | 2026-09-20 (2) | El contrato externo de `GET /api/v1/usuarios/{uid}` no cambia (mismo `401`/`403`/`404`), pero por dentro el gateway pasa a validar el `idToken` **él mismo** (integración propia con Firebase Admin SDK) en vez de reenviarlo a `chat-registro` — es una decisión de arquitectura: el gateway es el único punto del sistema que valida tokens de identidad, para que futuros microservicios con autenticación no necesiten integrarse cada uno con Firebase. Ver `arquitectura-gateway.md`. |
 | 2026-09-20 (1) | Se fusionan en este único documento los contratos que antes vivían separados en `contratos-api-conversacion.md` y `contratos-api-usuarios.md` (WebSocket + historial de chat, y consulta autenticada de usuario) — ambos archivos se eliminan, este es ahora el contrato REST/WebSocket completo del gateway. |
 | 2026-09-19 | Se añade `GET /api/v1/usuarios/{uid}` (autenticado, `Authorization: Bearer <idToken>`). |

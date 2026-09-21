@@ -73,8 +73,13 @@ metadata `usuario`, y traduce cada frame en los dos sentidos mientras la sesión
 `GET /api/v1/conversaciones/{usuarioA}/{usuarioB}?page&size&sort` — historial paginado,
 enrutado por una llamada unaria `ConversacionGrpcService/Historial`.
 
+`GET /api/v1/conversaciones/{usuario}/chats?cursor&size` — lista de chats de `usuario` con el
+último mensaje de cada uno, paginada por **cursor** (no página/offset, pensada para scroll
+infinito), enrutada a `ConversacionGrpcService/ListaChats`. Primer endpoint REST del gateway
+sin equivalente previo en `chat-conversacion` (nació directo como rpc gRPC).
+
 Contrato completo (formato de los mensajes, reglas de entrega, paginación) en
-[`docs/contratos-api.md`](docs/contratos-api.md) §4.3 y §4.4.
+[`docs/contratos-api.md`](docs/contratos-api.md) §4.3, §4.4 y §4.5.
 
 ## Consulta de datos de usuario (vía `chat-registro`, autenticada)
 
@@ -96,9 +101,9 @@ Contrato completo (los tres códigos de error posibles, ejemplos, modelos TypeSc
 
 ## Documentación de la API
 
-- **Contratos para clientes** → [`docs/contratos-api.md`](docs/contratos-api.md) — los cuatro
-  endpoints del gateway (registro, datos de usuario, WebSocket de chat, historial):
-  request/response, errores, notas de integración, modelos TypeScript.
+- **Contratos para clientes** → [`docs/contratos-api.md`](docs/contratos-api.md) — los cinco
+  endpoints del gateway (registro, datos de usuario, WebSocket de chat, historial, lista de
+  chats): request/response, errores, notas de integración, modelos TypeScript.
 - **Arquitectura del gateway** → [`docs/arquitectura-gateway.md`](docs/arquitectura-gateway.md)
   (cómo se enruta cada petición, cómo añadir un microservicio nuevo — REST-unario o
   WebSocket-bidi).
@@ -146,14 +151,14 @@ com.arquetipo.demo
     │   ├── ChatWebSocketConfig.java          registra el handler en /ws/chat/{usuario}
     │   ├── ChatWebSocketHandler.java         puente: frame de texto <-> stream de gRPC
     │   ├── UsuarioHandshakeInterceptor.java  valida el {usuario} de la URL antes de abrir el stream
-    │   ├── ConversacionController.java       GET /api/v1/conversaciones/{usuarioA}/{usuarioB}
-    │   ├── ConversacionApi.java              contrato OpenAPI del historial
-    │   └── dto/MensajeEntrante.java · MensajeResponse.java · PageResponse.java
+    │   ├── ConversacionController.java       GET /api/v1/conversaciones/{usuarioA}/{usuarioB} y /{usuario}/chats
+    │   ├── ConversacionApi.java              contrato OpenAPI del historial y de la lista de chats
+    │   └── dto/MensajeEntrante.java · MensajeResponse.java · PageResponse.java · ChatResumen.java · CursorPage.java
     ├── service/ConversacionService.java     orquesta; delega en el cliente gRPC
     └── grpc/
         ├── ConversacionGrpcProperties.java       host/puerto de chat-conversacion (application.yml)
-        ├── ConversacionGrpcClientConfig.java      ManagedChannel + stub async (Chat) y bloqueante (Historial)
-        └── ConversacionGrpcClient.java            DTO <-> proto (stream y unario), errores gRPC <-> excepciones
+        ├── ConversacionGrpcClientConfig.java      ManagedChannel + stub async (Chat) y bloqueante (Historial, ListaChats)
+        └── ConversacionGrpcClient.java            DTO <-> proto (stream y unarios), errores gRPC <-> excepciones
 
 src/main/proto/registro.proto             copia exacta del contrato gRPC de chat-registro
 src/main/proto/conversacion.proto         copia exacta del contrato gRPC de chat-conversacion
@@ -203,6 +208,7 @@ microservicio y traduce la respuesta/error). El cliente REST nunca ve un mensaje
 | Registro | `POST` http://localhost:8080/api/v1/registro |
 | Chat (WebSocket) | ws://localhost:8080/ws/chat/{usuario} |
 | Historial de chat | `GET` http://localhost:8080/api/v1/conversaciones/{usuarioA}/{usuarioB} |
+| Lista de chats | `GET` http://localhost:8080/api/v1/conversaciones/{usuario}/chats |
 | Datos de usuario (autenticado) | `GET` http://localhost:8080/api/v1/usuarios/{uid} |
 | Swagger UI | http://localhost:8080/swagger-ui.html |
 | OpenAPI JSON | http://localhost:8080/v3/api-docs |

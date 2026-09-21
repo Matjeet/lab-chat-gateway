@@ -7,7 +7,10 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.arquetipo.demo.common.exception.ServiceUnavailableException;
+import com.arquetipo.demo.common.exception.ValidationException;
 import com.arquetipo.demo.conversacion.service.ConversacionService;
+import com.arquetipo.demo.conversacion.web.dto.ChatResumen;
+import com.arquetipo.demo.conversacion.web.dto.CursorPage;
 import com.arquetipo.demo.conversacion.web.dto.MensajeResponse;
 import com.arquetipo.demo.conversacion.web.dto.PageResponse;
 import java.time.Instant;
@@ -73,6 +76,63 @@ class ConversacionControllerTest {
 				.thenThrow(new ServiceUnavailableException("chat-conversacion"));
 
 		mockMvc.perform(get("/api/v1/conversaciones/mateo/ana"))
+				.andExpect(status().isServiceUnavailable())
+				.andExpect(jsonPath("$.type").value("urn:problem-type:service-unavailable"));
+	}
+
+	@Test
+	void listaChats_datosValidos_devuelve200ConLaPagina() throws Exception {
+		MensajeResponse mensaje = new MensajeResponse("1", "mateo", "ana", "Hola!",
+				Instant.parse("2026-09-18T20:53:47.441193Z"));
+		when(service.listaChats("mateo", "", 20))
+				.thenReturn(new CursorPage<>(List.of(new ChatResumen("ana", mensaje)), "cursor-siguiente", true));
+
+		mockMvc.perform(get("/api/v1/conversaciones/mateo/chats"))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.content[0].otroUsuario").value("ana"))
+				.andExpect(jsonPath("$.content[0].ultimoMensaje.contenido").value("Hola!"))
+				.andExpect(jsonPath("$.nextCursor").value("cursor-siguiente"))
+				.andExpect(jsonPath("$.hasMore").value(true));
+	}
+
+	@Test
+	void listaChats_sinChats_devuelve200ConContentVacioYSinMasPaginas() throws Exception {
+		when(service.listaChats("mateo", "", 20))
+				.thenReturn(new CursorPage<>(List.of(), "", false));
+
+		mockMvc.perform(get("/api/v1/conversaciones/mateo/chats"))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.content").isEmpty())
+				.andExpect(jsonPath("$.hasMore").value(false));
+	}
+
+	@Test
+	void listaChats_conCursor_loReenviaTalCual() throws Exception {
+		when(service.listaChats("mateo", "cursor-recibido", 50))
+				.thenReturn(new CursorPage<>(List.of(), "", false));
+
+		mockMvc.perform(get("/api/v1/conversaciones/mateo/chats")
+						.param("cursor", "cursor-recibido")
+						.param("size", "50"))
+				.andExpect(status().isOk());
+	}
+
+	@Test
+	void listaChats_cursorInvalido_devuelve400() throws Exception {
+		when(service.listaChats("mateo", "cursor-invalido", 20))
+				.thenThrow(new ValidationException("El cursor de paginacion no es valido", List.of()));
+
+		mockMvc.perform(get("/api/v1/conversaciones/mateo/chats").param("cursor", "cursor-invalido"))
+				.andExpect(status().isBadRequest())
+				.andExpect(jsonPath("$.type").value("urn:problem-type:validation-error"));
+	}
+
+	@Test
+	void listaChats_conversacionCaida_devuelve503() throws Exception {
+		when(service.listaChats("mateo", "", 20))
+				.thenThrow(new ServiceUnavailableException("chat-conversacion"));
+
+		mockMvc.perform(get("/api/v1/conversaciones/mateo/chats"))
 				.andExpect(status().isServiceUnavailable())
 				.andExpect(jsonPath("$.type").value("urn:problem-type:service-unavailable"));
 	}

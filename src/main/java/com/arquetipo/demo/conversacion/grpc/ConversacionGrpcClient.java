@@ -1,6 +1,9 @@
 package com.arquetipo.demo.conversacion.grpc;
 
 import com.arquetipo.demo.common.exception.ServiceUnavailableException;
+import com.arquetipo.demo.common.exception.ValidationException;
+import com.arquetipo.demo.conversacion.web.dto.ChatResumen;
+import com.arquetipo.demo.conversacion.web.dto.CursorPage;
 import com.arquetipo.demo.conversacion.web.dto.MensajeEntrante;
 import com.arquetipo.demo.conversacion.web.dto.MensajeResponse;
 import com.arquetipo.demo.conversacion.web.dto.PageResponse;
@@ -9,6 +12,7 @@ import io.grpc.StatusRuntimeException;
 import io.grpc.stub.MetadataUtils;
 import io.grpc.stub.StreamObserver;
 import java.time.Instant;
+import java.util.List;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
@@ -22,7 +26,8 @@ import org.springframework.stereotype.Component;
  * cabecera de metadata {@code usuario} (ver {@code contrato-grpc-conversacion.md} §3.1) y
  * devuelve un {@link StreamObserver} para que el llamador (el WebSocket) mande mensajes
  * salientes; cada {@code MensajeEntregado} que llegue se traduce y se entrega a {@code receptor}.
- * {@code Historial} es unario: {@link #historial} es una llamada bloqueante normal.
+ * {@code Historial} y {@code ListaChats} son unarios: {@link #historial} y {@link #listaChats}
+ * son llamadas bloqueantes normales.
  */
 @Slf4j
 @Component
@@ -127,6 +132,32 @@ public class ConversacionGrpcClient {
 		}
 	}
 
+	public CursorPage<ChatResumen> listaChats(String usuario, String cursor, int size) {
+		log.debug(">> listaChats(usuario='{}', conCursor={}, size={})", usuario, cursor != null && !cursor.isBlank(), size);
+		ListaChatsRequest peticion = ListaChatsRequest.newBuilder()
+				.setUsuario(usuario)
+				.setCursor(cursor == null ? "" : cursor)
+				.setSize(size)
+				.build();
+
+		try {
+			ListaChatsResponse respuesta = blockingStub.listaChats(peticion);
+			CursorPage<ChatResumen> resultado = new CursorPage<>(
+					respuesta.getContentList().stream().map(this::aChatResumen).toList(),
+					respuesta.getNextCursor(),
+					respuesta.getHasMore());
+			log.debug("<< listaChats() -> OK, chats={}, hasMore={}", resultado.content().size(), resultado.hasMore());
+			return resultado;
+		} catch (StatusRuntimeException ex) {
+			// Sin log de fin a proposito, mismo criterio que en historial().
+			throw traducir(ex);
+		}
+	}
+
+	private ChatResumen aChatResumen(com.arquetipo.demo.conversacion.grpc.ChatResumen resumen) {
+		return new ChatResumen(resumen.getOtroUsuario(), aMensajeResponse(resumen.getUltimoMensaje()));
+	}
+
 	private MensajeResponse aMensajeResponse(MensajeEntregado entregado) {
 		return new MensajeResponse(
 				entregado.getId(),
@@ -138,6 +169,7 @@ public class ConversacionGrpcClient {
 
 	private RuntimeException traducir(StatusRuntimeException ex) {
 		return switch (ex.getStatus().getCode()) {
+			case INVALID_ARGUMENT -> new ValidationException(ex.getStatus().getDescription(), List.of());
 			case UNAVAILABLE -> {
 				log.error("No se pudo contactar con {} por gRPC", NOMBRE_SERVICIO, ex);
 				yield new ServiceUnavailableException(NOMBRE_SERVICIO);

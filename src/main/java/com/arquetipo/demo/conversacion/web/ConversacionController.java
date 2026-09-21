@@ -1,6 +1,8 @@
 package com.arquetipo.demo.conversacion.web;
 
 import com.arquetipo.demo.conversacion.service.ConversacionService;
+import com.arquetipo.demo.conversacion.web.dto.ChatResumen;
+import com.arquetipo.demo.conversacion.web.dto.CursorPage;
 import com.arquetipo.demo.conversacion.web.dto.MensajeResponse;
 import com.arquetipo.demo.conversacion.web.dto.PageResponse;
 import lombok.extern.slf4j.Slf4j;
@@ -11,18 +13,23 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * Historial de una conversacion 1 a 1, enrutado por gRPC a {@code chat-conversacion}. El
- * envio de mensajes nuevos va por {@link ChatWebSocketHandler} (WebSocket,
- * {@code /ws/chat/{usuario}}), no por aqui.
+ * Historial y lista de chats de una conversacion 1 a 1, enrutados por gRPC a
+ * {@code chat-conversacion}. El envio de mensajes nuevos va por {@link ChatWebSocketHandler}
+ * (WebSocket, {@code /ws/chat/{usuario}}), no por aqui.
  *
  * <p>CORS para {@code /api/**} lo cubre el {@code CorsConfig} global del gateway (mismo que
  * usa el feature de registro) — no hace falta repetirlo aqui, a diferencia de
  * {@code chat-conversacion}, que lo declara por controlador.
  *
- * <p>A diferencia del REST original, aqui {@code page}/{@code size}/{@code sort} se pasan tal
- * cual a {@code chat-conversacion} por gRPC (que aplica los mismos defaults y limites, ver
- * {@code contrato-grpc-conversacion.md} §4): el gateway no depende de Spring Data solo para
- * esto.
+ * <p>A diferencia del REST original de {@code chat-conversacion}, aqui los parametros de
+ * paginacion ({@code page}/{@code size}/{@code sort} de {@link #historial}, {@code cursor}/
+ * {@code size} de {@link #listaChats}) se pasan tal cual por gRPC (que aplica los mismos
+ * defaults y limites, ver {@code contrato-grpc-conversacion.md} §4 y §5): el gateway no
+ * depende de Spring Data solo para esto.
+ *
+ * <p>{@code /{usuario}/chats} (segmento literal) y {@code /{usuarioA}/{usuarioB}} (ambos
+ * variables) conviven sin ambiguedad: Spring prioriza el segmento literal al resolver la
+ * ruta de una peticion concreta.
  */
 @Slf4j
 @RestController
@@ -46,6 +53,18 @@ public class ConversacionController implements ConversacionApi {
 		log.debug(">> historial(usuarioA='{}', usuarioB='{}', page={}, size={})", usuarioA, usuarioB, page, size);
 		PageResponse<MensajeResponse> respuesta = service.historial(usuarioA, usuarioB, page, size, sort);
 		log.debug("<< historial() -> OK, totalElements={}", respuesta.totalElements());
+		return respuesta;
+	}
+
+	@Override
+	@GetMapping("/{usuario}/chats")
+	public CursorPage<ChatResumen> listaChats(
+			@PathVariable String usuario,
+			@RequestParam(defaultValue = "") String cursor,
+			@RequestParam(defaultValue = "20") int size) {
+		log.debug(">> listaChats(usuario='{}', conCursor={}, size={})", usuario, !cursor.isBlank(), size);
+		CursorPage<ChatResumen> respuesta = service.listaChats(usuario, cursor, size);
+		log.debug("<< listaChats() -> OK, chats={}, hasMore={}", respuesta.content().size(), respuesta.hasMore());
 		return respuesta;
 	}
 }

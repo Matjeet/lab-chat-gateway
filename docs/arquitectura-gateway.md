@@ -64,19 +64,22 @@ conversacion/
 │   ├── ChatWebSocketConfig.java          registra el handler en /ws/chat/{usuario}
 │   ├── ChatWebSocketHandler.java         puente: frame de texto <-> stream gRPC (ver mas abajo)
 │   ├── UsuarioHandshakeInterceptor.java  valida el {usuario} de la URL antes de abrir el stream
-│   ├── ConversacionController.java       REST del historial (unario, mismo patron que registro)
-│   ├── ConversacionApi.java              contrato OpenAPI del historial
-│   └── dto/ (MensajeEntrante, MensajeResponse, PageResponse)
+│   ├── ConversacionController.java       REST del historial y de la lista de chats (unarios,
+│   │                                      mismo patron que registro)
+│   ├── ConversacionApi.java              contrato OpenAPI de ambos
+│   └── dto/ (MensajeEntrante, MensajeResponse, PageResponse, ChatResumen, CursorPage)
 ├── service/
 │   └── ConversacionService.java          delega en el grpc client; un metodo por rpc (uno
-│                                          bidi, uno unario)
+│                                          bidi, dos unarios)
 └── grpc/
     ├── ConversacionGrpcProperties.java
     ├── ConversacionGrpcClientConfig.java  dos stubs sobre el mismo canal: uno async (bidi
-    │                                      streaming, para Chat) y uno bloqueante (para Historial)
+    │                                      streaming, para Chat) y uno bloqueante (para
+    │                                      Historial y ListaChats)
     └── ConversacionGrpcClient.java        abrirChat(usuario, receptor) devuelve un
-                                            StreamObserver para mandar; historial(...) es una
-                                            llamada bloqueante normal
+                                            StreamObserver para mandar; historial(...) y
+                                            listaChats(...) son llamadas bloqueantes normales
+                                            (el cursor de esta ultima viaja tal cual, opaco)
 ```
 
 `ChatWebSocketHandler` abre, en `afterConnectionEstablished`, un stream gRPC por sesión de
