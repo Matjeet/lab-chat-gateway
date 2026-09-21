@@ -4,9 +4,11 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.arquetipo.demo.common.exception.DuplicateResourceException;
+import com.arquetipo.demo.common.exception.ResourceNotFoundException;
 import com.arquetipo.demo.common.exception.ValidationException;
 import com.arquetipo.demo.registro.web.dto.RegistroRequest;
 import com.arquetipo.demo.registro.web.dto.RegistroResponse;
+import com.arquetipo.demo.registro.web.dto.UsuarioResponse;
 import io.grpc.ManagedChannel;
 import io.grpc.Server;
 import io.grpc.Status;
@@ -137,5 +139,50 @@ class RegistroGrpcClientTest {
 		assertThatThrownBy(() -> client.registrar(request()))
 				.isNotInstanceOf(DuplicateResourceException.class)
 				.isNotInstanceOf(ValidationException.class);
+	}
+
+	@Test
+	void buscarUsuarioPorUid_respuestaValida_seTraduceAUsuarioResponse() throws IOException {
+		RegistroGrpcClient client = clientePara(new RegistroGrpcServiceGrpc.RegistroGrpcServiceImplBase() {
+			@Override
+			public void buscarUsuarioPorUid(BuscarUsuarioPorUidRequest req, StreamObserver<BuscarUsuarioPorUidResponse> obs) {
+				obs.onNext(BuscarUsuarioPorUidResponse.newBuilder()
+						.setUsername("mateo")
+						.setEmail("mateo@example.com")
+						.build());
+				obs.onCompleted();
+			}
+		});
+
+		UsuarioResponse respuesta = client.buscarUsuarioPorUid("uid-mateo");
+
+		assertThat(respuesta.username()).isEqualTo("mateo");
+		assertThat(respuesta.email()).isEqualTo("mateo@example.com");
+	}
+
+	@Test
+	void buscarUsuarioPorUid_sinUsuarioConEseUid_lanzaResourceNotFoundException() throws IOException {
+		RegistroGrpcClient client = clientePara(new RegistroGrpcServiceGrpc.RegistroGrpcServiceImplBase() {
+			@Override
+			public void buscarUsuarioPorUid(BuscarUsuarioPorUidRequest req, StreamObserver<BuscarUsuarioPorUidResponse> obs) {
+				obs.onError(Status.NOT_FOUND.withDescription("Usuario no encontrado").asRuntimeException());
+			}
+		});
+
+		assertThatThrownBy(() -> client.buscarUsuarioPorUid("uid-inexistente"))
+				.isInstanceOf(ResourceNotFoundException.class);
+	}
+
+	@Test
+	void buscarUsuarioPorUid_serviceCaido_lanzaServiceUnavailableException() throws IOException {
+		RegistroGrpcClient client = clientePara(new RegistroGrpcServiceGrpc.RegistroGrpcServiceImplBase() {
+			@Override
+			public void buscarUsuarioPorUid(BuscarUsuarioPorUidRequest req, StreamObserver<BuscarUsuarioPorUidResponse> obs) {
+				obs.onError(Status.UNAVAILABLE.asRuntimeException());
+			}
+		});
+
+		assertThatThrownBy(() -> client.buscarUsuarioPorUid("uid-mateo"))
+				.isInstanceOf(com.arquetipo.demo.common.exception.ServiceUnavailableException.class);
 	}
 }

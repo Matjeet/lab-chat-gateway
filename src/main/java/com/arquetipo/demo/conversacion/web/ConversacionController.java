@@ -3,6 +3,7 @@ package com.arquetipo.demo.conversacion.web;
 import com.arquetipo.demo.conversacion.service.ConversacionService;
 import com.arquetipo.demo.conversacion.web.dto.MensajeResponse;
 import com.arquetipo.demo.conversacion.web.dto.PageResponse;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -23,6 +24,7 @@ import org.springframework.web.bind.annotation.RestController;
  * {@code contrato-grpc-conversacion.md} §4): el gateway no depende de Spring Data solo para
  * esto.
  */
+@Slf4j
 @RestController
 @RequestMapping("/api/v1/conversaciones")
 public class ConversacionController implements ConversacionApi {
@@ -41,6 +43,9 @@ public class ConversacionController implements ConversacionApi {
 			@RequestParam(defaultValue = "0") int page,
 			@RequestParam(defaultValue = "20") int size,
 			@RequestParam(defaultValue = "enviadoEn,asc") String sort) {
-		return service.historial(usuarioA, usuarioB, page, size, sort);
+		log.debug(">> historial(usuarioA='{}', usuarioB='{}', page={}, size={})", usuarioA, usuarioB, page, size);
+		PageResponse<MensajeResponse> respuesta = service.historial(usuarioA, usuarioB, page, size, sort);
+		log.debug("<< historial() -> OK, totalElements={}", respuesta.totalElements());
+		return respuesta;
 	}
 }

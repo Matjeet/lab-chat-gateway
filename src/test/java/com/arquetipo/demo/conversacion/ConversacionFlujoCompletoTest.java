@@ -3,6 +3,7 @@ package com.arquetipo.demo.conversacion;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import com.arquetipo.demo.common.auth.VerificadorTokenIdentidad;
 import com.arquetipo.demo.conversacion.grpc.ConversacionGrpcServiceGrpc;
 import com.arquetipo.demo.conversacion.grpc.HistorialRequest;
 import com.arquetipo.demo.conversacion.grpc.HistorialResponse;
@@ -38,6 +39,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.web.socket.TextMessage;
 import org.springframework.web.socket.WebSocketSession;
 import org.springframework.web.socket.client.standard.StandardWebSocketClient;
@@ -60,6 +62,12 @@ import org.springframework.web.socket.handler.TextWebSocketHandler;
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 @AutoConfigureTestRestTemplate
 class ConversacionFlujoCompletoTest {
+
+	// Con firebase.enabled=false (perfil de test) no hay ningun bean real de
+	// VerificadorTokenIdentidad; AutenticacionExtractor (UsuarioController) necesita uno para
+	// poder construirse, aunque este test no ejercite ese endpoint.
+	@MockitoBean
+	private VerificadorTokenIdentidad verificadorTokenIdentidad;
 
 	private static final Metadata.Key<String> USUARIO_METADATA_KEY =
 			Metadata.Key.of("usuario", Metadata.ASCII_STRING_MARSHALLER);

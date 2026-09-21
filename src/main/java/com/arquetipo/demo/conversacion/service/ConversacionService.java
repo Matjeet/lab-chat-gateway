@@ -5,6 +5,7 @@ import com.arquetipo.demo.conversacion.web.dto.MensajeEntrante;
 import com.arquetipo.demo.conversacion.web.dto.MensajeResponse;
 import com.arquetipo.demo.conversacion.web.dto.PageResponse;
 import io.grpc.stub.StreamObserver;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 /**
@@ -13,6 +14,7 @@ import org.springframework.stereotype.Service;
  * {@link com.arquetipo.demo.registro.service.RegistroService}, existe para mantener el mismo
  * flujo {@code Controller/Handler -> Service -> GrpcClient} del resto de features.
  */
+@Slf4j
 @Service
 public class ConversacionService {
 
@@ -23,10 +25,16 @@ public class ConversacionService {
 	}
 
 	public StreamObserver<MensajeEntrante> abrirChat(String usuario, StreamObserver<MensajeResponse> receptor) {
-		return grpcClient.abrirChat(usuario, receptor);
+		log.debug(">> abrirChat(usuario='{}')", usuario);
+		StreamObserver<MensajeEntrante> streamEntrante = grpcClient.abrirChat(usuario, receptor);
+		log.debug("<< abrirChat() -> OK");
+		return streamEntrante;
 	}
 
 	public PageResponse<MensajeResponse> historial(String usuarioA, String usuarioB, int page, int size, String sort) {
-		return grpcClient.historial(usuarioA, usuarioB, page, size, sort);
+		log.debug(">> historial(usuarioA='{}', usuarioB='{}', page={}, size={})", usuarioA, usuarioB, page, size);
+		PageResponse<MensajeResponse> respuesta = grpcClient.historial(usuarioA, usuarioB, page, size, sort);
+		log.debug("<< historial() -> OK, totalElements={}", respuesta.totalElements());
+		return respuesta;
 	}
 }

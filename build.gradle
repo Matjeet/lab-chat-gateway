@@ -43,6 +43,16 @@ dependencies {
 	// --- WebSockets (chat en tiempo real, puente hacia chat-conversacion) ---
 	implementation 'org.springframework.boot:spring-boot-starter-websocket'
 
+	// --- Identidad (Firebase Auth): el gateway es el UNICO punto del sistema que valida
+	// tokens de identidad. Los microservicios internos (chat-registro incluido) no llevan
+	// esta dependencia para eso -- reciben del gateway un uid ya verificado, nunca el token.
+	implementation 'com.google.firebase:firebase-admin:9.4.3'
+	// Transporte HTTP alternativo (Apache HttpClient) para el SDK de Firebase: el transporte
+	// por defecto (NetHttpTransport, sobre HttpURLConnection) puede chocar con inspeccion de
+	// trafico de terceros en la maquina (antivirus/EDR) que corrompe la respuesta gzip. Mismo
+	// motivo que en chat-registro.
+	implementation 'com.google.http-client:google-http-client-apache-v2:1.45.3'
+
 	// --- Observabilidad ---
 	implementation 'org.springframework.boot:spring-boot-starter-actuator'
 
