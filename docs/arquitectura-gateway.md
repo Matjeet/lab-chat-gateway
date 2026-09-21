@@ -23,8 +23,7 @@ Cliente ──WebSocket──▶ chat-gateway ──gRPC (bidi stream)▶ chat-c
   controlada donde ambos lados son código propio.
 
 El cliente **no sabe** que por debajo hay gRPC: el contrato JSON documentado en
-`docs/contratos-api.md` (registro) y `docs/contratos-api-conversacion.md` (chat) no cambia si
-un día se sustituye el transporte interno por otra cosa.
+`docs/contratos-api.md` no cambia si un día se sustituye el transporte interno por otra cosa.
 
 Hay dos formas de "espejo" según el tipo de llamada gRPC del microservicio destino:
 
@@ -93,6 +92,64 @@ gRPC, no el hilo propio de la sesión.
 microservicio destino (ver `contrato-grpc-<servicio>.md` en su propio repo) — no se reescribe,
 solo se copia tal cual para que el gradle plugin `com.google.protobuf` genere el stub.
 
+## Autenticación: el gateway es la única frontera
+
+`GET /api/v1/usuarios/{uid}` (dentro de `registro/`, junto al alta) es el primer endpoint
+autenticado del sistema, y fija la regla para todos los que vengan después:
+
+> **El gateway valida los tokens de identidad. Los microservicios internos no.**
+
+Concretamente, `chat-gateway` tiene su **propia** integración con Firebase Admin SDK (mismo
+proyecto de Firebase que usa `chat-registro` para crear cuentas, pero una dependencia
+`firebase-admin` distinta, en `common/auth/firebase/`) — es el único servicio del sistema que
+la lleva con este propósito. `chat-registro` (y cualquier microservicio futuro) **no** verifica
+tokens: recibe del gateway un identificador ya autenticado (p. ej. un `uid`) y confía en él,
+igual que confiaría en un dato que él mismo hubiera calculado.
+
+```
+common/auth/
+├── VerificadorTokenIdentidad.java   puerto: verificar(idToken) -> uid, o UnauthorizedException
+├── AutenticacionExtractor.java      lo usa cualquier controlador: uidAutenticado(cabecera Authorization)
+└── firebase/
+    ├── FirebaseAuthConfig.java              inicializa FirebaseApp/FirebaseAuth (solo para verificar)
+    └── FirebaseVerificadorTokenIdentidad.java  implementacion sobre FirebaseAuth.verifyIdToken
+```
+
+`UsuarioController` es el ejemplo a seguir para cualquier endpoint nuevo que necesite
+autenticación:
+
+```java
+String uidAutenticado = autenticacion.uidAutenticado(authorization); // 401 si falta o es invalido
+if (!uidAutenticado.equals(uid)) {
+    throw new ForbiddenException("...");                              // 403 si es de otro usuario
+}
+return service.obtenerUsuario(uid);                                   // a chat-registro solo llega el uid
+```
+
+**Por qué así, y no dejando que cada microservicio valide su propio token:**
+
+- **Un solo lugar que puede fallar de forma insegura.** Si mañana se añade un microservicio
+  nuevo que necesita saber "quién es el usuario autenticado", no se integra con Firebase (ni
+  con OAuth, ni con lo que sea) — pide el uid ya verificado al gateway. Menos superficie con
+  credenciales de proveedor de identidad, menos sitios que mantener actualizados si cambia el
+  proveedor.
+- **`VerificadorTokenIdentidad` es un puerto, no un acoplamiento a Firebase.** Cambiar de
+  proveedor de identidad (o soportar varios) es escribir una implementación nueva de esa
+  interfaz, sin tocar `AutenticacionExtractor` ni ningún controlador — mismo patrón que
+  `ProveedorIdentidad` en `chat-registro`.
+- **El token nunca sale del gateway.** Ni por gRPC ni en ningún log: los microservicios
+  internos ven un `uid` (o el identificador que corresponda), nunca una credencial.
+
+## Un patrón más: REST-unario autenticado
+
+`GET /api/v1/usuarios/{uid}` es REST-unario como `Registrar`, pero además el propio
+controlador autentica y autoriza antes de llamar por gRPC: extrae el `idToken` de
+`Authorization`, lo verifica con `AutenticacionExtractor` (`401` si falta o es inválido),
+compara el uid resultante contra el recurso pedido (`403` si no coincide), y solo entonces
+delega en el `Service`/`GrpcClient` — que llaman a `chat-registro` con el `uid` desnudo, igual
+que en cualquier otro rpc unario. Si un microservicio nuevo necesita algo similar, este es el
+patrón a seguir.
+
 ## Cómo añadir un microservicio nuevo
 
 1. Pide al equipo dueño del microservicio su `contrato-grpc-<servicio>.md` (o el `.proto`
@@ -109,15 +166,19 @@ solo se copia tal cual para que el gradle plugin `com.google.protobuf` genere el
    contrato JSON que el cliente ya espera. Para WebSocket: un `<Servicio>WebSocketHandler` que
    abra el stream al conectar y traduzca frames en los dos sentidos (ver
    `ChatWebSocketHandler`), más un `HandshakeInterceptor` si hace falta validar algo de la URL
-   de conexión antes de abrir el stream.
+   de conexión antes de abrir el stream. Si el endpoint necesita autenticación, inyecta
+   `AutenticacionExtractor` (ver "Autenticación: el gateway es la única frontera" más arriba) —
+   **nunca** integres el microservicio nuevo (ni este controlador) directamente con Firebase u
+   otro proveedor de identidad para validar tokens.
 6. Mapea los códigos gRPC (`ALREADY_EXISTS`, `INVALID_ARGUMENT`, `UNAVAILABLE`, ...) a las
    excepciones de `com.arquetipo.demo.common.exception` que ya traduce `GlobalExceptionHandler`
    — reutilízalas en vez de crear un manejador nuevo por servicio, salvo que el microservicio
    introduzca un tipo de error genuinamente nuevo. Para WebSocket no hay `GlobalExceptionHandler`
    equivalente (el protocolo no tiene Problem Details): un error del stream simplemente cierra
    la sesión (ver `ChatWebSocketHandler`).
-7. Documenta el endpoint nuevo en `docs/contratos-api.md` (o en un archivo aparte si la lista
-   crece mucho, p. ej. `docs/contratos-api-<servicio>.md` — así se hizo para `conversacion/`).
+7. Documenta el endpoint nuevo como una sección más de `docs/contratos-api.md` — es el único
+   contrato REST/WebSocket del gateway, deliberadamente no partido por microservicio (un
+   cliente solo debería necesitar abrir un documento para saber todo lo que el gateway expone).
 
 ## Manejo de errores
 
@@ -125,13 +186,15 @@ solo se copia tal cual para que el gradle plugin `com.google.protobuf` genere el
 Problem Details (RFC 9457); ningún controlador atrapa excepciones. Las excepciones de dominio
 que ya cubre y que cualquier cliente gRPC nuevo puede reutilizar:
 
-| Excepción | Código gRPC de origen tipico | HTTP |
+| Excepción | Origen típico | HTTP |
 |---|---|---|
-| `DuplicateResourceException` | `ALREADY_EXISTS` | 409 |
-| `ValidationException` | `INVALID_ARGUMENT` | 400 (con `errors[]`) |
-| `ServiceUnavailableException` | `UNAVAILABLE` | 503 |
-| `ResourceNotFoundException` | `NOT_FOUND` | 404 |
-| (cualquier otra) | `INTERNAL` u otro no mapeado | 500 genérico |
+| `DuplicateResourceException` | gRPC `ALREADY_EXISTS` | 409 |
+| `ValidationException` | gRPC `INVALID_ARGUMENT` | 400 (con `errors[]`) |
+| `UnauthorizedException` | El propio gateway (`AutenticacionExtractor`/`VerificadorTokenIdentidad`) — nunca un microservicio interno | 401 |
+| `ForbiddenException` | El propio controlador, al comparar el uid autenticado contra el recurso pedido | 403 |
+| `ServiceUnavailableException` | gRPC `UNAVAILABLE` | 503 |
+| `ResourceNotFoundException` | gRPC `NOT_FOUND` | 404 |
+| (cualquier otra) | gRPC `INTERNAL` u otro no mapeado | 500 genérico |
 
 ## Qué el gateway deliberadamente no hace
 
@@ -142,3 +205,8 @@ que ya cubre y que cualquier cliente gRPC nuevo puede reutilizar:
   microservicio.
 - **No reintenta llamadas automáticamente.** Un `503`/`500` se propaga al cliente; la política
   de reintentos (si se añade) sería explícita y documentada aparte.
+- **No delega la validación de tokens de identidad en los microservicios internos.** Es al
+  revés de lo que podría parecer natural en un sistema "sin lógica de negocio propia": la
+  autenticación sí es responsabilidad exclusiva del gateway (ver "Autenticación: el gateway es
+  la única frontera" más arriba) — un microservicio interno nunca debería recibir un token, solo
+  un identificador ya verificado.

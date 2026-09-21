@@ -52,6 +52,7 @@ public class ConversacionGrpcClient {
 	 * cerrar la sesion de WebSocket).
 	 */
 	public StreamObserver<MensajeEntrante> abrirChat(String usuario, StreamObserver<MensajeResponse> receptor) {
+		log.debug(">> abrirChat(usuario='{}')", usuario);
 		Metadata cabeceras = new Metadata();
 		cabeceras.put(USUARIO_METADATA_KEY, usuario);
 		ConversacionGrpcServiceGrpc.ConversacionGrpcServiceStub stubConUsuario =
@@ -74,7 +75,7 @@ public class ConversacionGrpcClient {
 			}
 		});
 
-		return new StreamObserver<>() {
+		StreamObserver<MensajeEntrante> streamEntrante = new StreamObserver<>() {
 			@Override
 			public void onNext(MensajeEntrante value) {
 				streamSaliente.onNext(MensajeSaliente.newBuilder()
@@ -93,9 +94,12 @@ public class ConversacionGrpcClient {
 				streamSaliente.onCompleted();
 			}
 		};
+		log.debug("<< abrirChat() -> OK");
+		return streamEntrante;
 	}
 
 	public PageResponse<MensajeResponse> historial(String usuarioA, String usuarioB, int page, int size, String sort) {
+		log.debug(">> historial(usuarioA='{}', usuarioB='{}', page={}, size={})", usuarioA, usuarioB, page, size);
 		HistorialRequest peticion = HistorialRequest.newBuilder()
 				.setUsuarioA(usuarioA)
 				.setUsuarioB(usuarioB)
@@ -106,7 +110,7 @@ public class ConversacionGrpcClient {
 
 		try {
 			HistorialResponse respuesta = blockingStub.historial(peticion);
-			return new PageResponse<>(
+			PageResponse<MensajeResponse> resultado = new PageResponse<>(
 					respuesta.getContentList().stream().map(this::aMensajeResponse).toList(),
 					respuesta.getPage(),
 					respuesta.getSize(),
@@ -115,7 +119,10 @@ public class ConversacionGrpcClient {
 					respuesta.getFirst(),
 					respuesta.getLast(),
 					respuesta.getEmpty());
+			log.debug("<< historial() -> OK, totalElements={}", resultado.totalElements());
+			return resultado;
 		} catch (StatusRuntimeException ex) {
+			// Sin log de fin a proposito: el detalle real ya queda en traducir() (log.error).
 			throw traducir(ex);
 		}
 	}

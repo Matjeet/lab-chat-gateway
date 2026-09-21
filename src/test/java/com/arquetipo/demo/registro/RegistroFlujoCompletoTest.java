@@ -2,6 +2,7 @@ package com.arquetipo.demo.registro;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.arquetipo.demo.common.auth.VerificadorTokenIdentidad;
 import com.arquetipo.demo.registro.grpc.RegistrarUsuarioRequest;
 import com.arquetipo.demo.registro.grpc.RegistrarUsuarioResponse;
 import com.arquetipo.demo.registro.grpc.RegistroGrpcServiceGrpc;
@@ -27,6 +28,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 
 /**
  * Prueba el flujo completo que debe seguir SIEMPRE una peticion que entra al gateway:
@@ -46,6 +48,12 @@ import org.springframework.test.context.DynamicPropertySource;
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 @AutoConfigureTestRestTemplate
 class RegistroFlujoCompletoTest {
+
+	// Con firebase.enabled=false (perfil de test) no hay ningun bean real de
+	// VerificadorTokenIdentidad; AutenticacionExtractor (UsuarioController) necesita uno para
+	// poder construirse, aunque este test no ejercite ese endpoint.
+	@MockitoBean
+	private VerificadorTokenIdentidad verificadorTokenIdentidad;
 
 	private static Server servidorFalsoChatRegistro;
 

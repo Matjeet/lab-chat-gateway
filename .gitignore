@@ -1,3 +1,12 @@
+### Credenciales de Firebase (clave de cuenta de servicio: JAMAS se versiona) ###
+firebase-service-account*.json
+*firebase-adminsdk*.json
+
+### Variables de entorno (no versionar secretos; usar .env.example como plantilla) ###
+.env
+.env.*
+!.env.example
+
 HELP.md
 .gradle
 build/

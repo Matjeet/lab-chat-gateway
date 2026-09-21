@@ -11,6 +11,7 @@ option java_outer_classname = "RegistroProto";
 // lo decide chat-registro y se refleja copiando de nuevo ese archivo.
 service RegistroGrpcService {
   rpc Registrar (RegistrarUsuarioRequest) returns (RegistrarUsuarioResponse);
+  rpc BuscarUsuarioPorUid (BuscarUsuarioPorUidRequest) returns (BuscarUsuarioPorUidResponse);
 }
 
 message RegistrarUsuarioRequest {
@@ -26,4 +27,13 @@ message RegistrarUsuarioResponse {
   string proveedor = 4;
   bool activo = 5;
   string created_at = 6;
+}
+
+message BuscarUsuarioPorUidRequest {
+  string uid = 1;
+}
+
+message BuscarUsuarioPorUidResponse {
+  string username = 1;
+  string email = 2;
 }

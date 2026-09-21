@@ -1,0 +1,7 @@
+# Configuracion exclusiva de tests: sin esto, los tests con @SpringBootTest intentarian
+# inicializar el SDK real de Firebase (credenciales por defecto del entorno, que no existen
+# aqui) y fallarian al levantar el contexto. Con firebase.enabled=false no se crea ningun bean
+# real de VerificadorTokenIdentidad; cada test que lo necesite aporta el suyo con @MockitoBean
+# (mismo patron que usa chat-registro para ProveedorIdentidad).
+firebase:
+  enabled: false
