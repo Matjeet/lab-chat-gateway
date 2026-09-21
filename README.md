@@ -24,6 +24,7 @@ cómo añadir un microservicio nuevo.
 | Build | Gradle (wrapper incluido) |
 | Protocolo con el cliente | REST/JSON y WebSocket (chat en tiempo real) |
 | Protocolo con los microservicios | gRPC (`io.grpc` + `com.google.protobuf` gradle plugin), unario y bidi streaming |
+| Identidad | Firebase Admin SDK — el gateway es el **único** servicio del sistema que valida tokens (`Authorization: Bearer <idToken>`); ver `common/auth` |
 | Validación | Bean Validation (`spring-boot-starter-validation`) |
 | Errores | RFC 9457 *Problem Details* vía `@RestControllerAdvice` |
 | Docs API | springdoc-openapi + Swagger UI (contrato REST expuesto al cliente) |
@@ -73,13 +74,31 @@ metadata `usuario`, y traduce cada frame en los dos sentidos mientras la sesión
 enrutado por una llamada unaria `ConversacionGrpcService/Historial`.
 
 Contrato completo (formato de los mensajes, reglas de entrega, paginación) en
-[`docs/contratos-api-conversacion.md`](docs/contratos-api-conversacion.md).
+[`docs/contratos-api.md`](docs/contratos-api.md) §4.3 y §4.4.
+
+## Consulta de datos de usuario (vía `chat-registro`, autenticada)
+
+`GET /api/v1/usuarios/{uid}` con cabecera `Authorization: Bearer <idToken>` — **el único
+endpoint del gateway que exige autenticación**. `{uid}` es el identificador que asigna Firebase
+al crear la cuenta (no el `username`). **El gateway valida el `idToken` él mismo**, con su
+propia integración con Firebase Admin SDK (`common/auth`, independiente de la que usa
+`chat-registro` para crear cuentas): sin la cabecera, o con un token inválido/expirado,
+responde `401` sin llamar por gRPC; si el token es válido pero de otro uid, `403` — también sin
+llamar. Solo si todo coincide llama a `RegistroGrpcService/BuscarUsuarioPorUid` en
+`chat-registro`, pasando el `uid` **desnudo, nunca el token**.
+
+```json
+{ "username": "mateo", "email": "mateo@example.com" }
+```
+
+Contrato completo (los tres códigos de error posibles, ejemplos, modelos TypeScript) en
+[`docs/contratos-api.md`](docs/contratos-api.md) §4.2.
 
 ## Documentación de la API
 
-- **Contratos para clientes** → [`docs/contratos-api.md`](docs/contratos-api.md) (registro de
-  usuarios) y [`docs/contratos-api-conversacion.md`](docs/contratos-api-conversacion.md) (chat:
-  WebSocket + historial) — request/response, errores, notas de integración, modelos TypeScript.
+- **Contratos para clientes** → [`docs/contratos-api.md`](docs/contratos-api.md) — los cuatro
+  endpoints del gateway (registro, datos de usuario, WebSocket de chat, historial):
+  request/response, errores, notas de integración, modelos TypeScript.
 - **Arquitectura del gateway** → [`docs/arquitectura-gateway.md`](docs/arquitectura-gateway.md)
   (cómo se enruta cada petición, cómo añadir un microservicio nuevo — REST-unario o
   WebSocket-bidi).
@@ -96,22 +115,32 @@ com.arquetipo.demo
 ├── DemoApplication.java
 ├── common/                              infraestructura transversal
 │   ├── config/CorsConfig.java · CorsProperties.java   CORS para /api/** (el gateway habla con el navegador)
+│   ├── auth/                                el gateway es la UNICA frontera de autenticacion del sistema
+│   │   ├── VerificadorTokenIdentidad.java       puerto: verificar(idToken) -> uid
+│   │   ├── AutenticacionExtractor.java          lo usa cualquier controlador: uidAutenticado(Authorization)
+│   │   └── firebase/
+│   │       ├── FirebaseAuthConfig.java              inicializa FirebaseApp/FirebaseAuth (solo para verificar)
+│   │       └── FirebaseVerificadorTokenIdentidad.java  implementacion sobre FirebaseAuth.verifyIdToken
 │   ├── exception/
 │   │   ├── ResourceNotFoundException        → 404
 │   │   ├── DuplicateResourceException       → 409
 │   │   ├── ValidationException              → 400 con errors[] (espejo de Bean Validation, vía gRPC)
+│   │   ├── UnauthorizedException            → 401 (lo lanza el propio gateway, nunca un microservicio)
+│   │   ├── ForbiddenException                → 403 (uid autenticado no coincide con el recurso pedido)
 │   │   └── ServiceUnavailableException      → 503 (microservicio destino caido)
 │   └── web/GlobalExceptionHandler.java      excepciones → Problem Details (RFC 9457)
 ├── registro/                            enrutado hacia chat-registro (REST unario)
 │   ├── web/
 │   │   ├── RegistroController.java          POST /api/v1/registro (valida + delega)
-│   │   ├── RegistroApi.java                 contrato OpenAPI
-│   │   └── dto/RegistroRequest.java · RegistroResponse.java
+│   │   ├── RegistroApi.java                 contrato OpenAPI del registro
+│   │   ├── UsuarioController.java           GET /api/v1/usuarios/{uid} (autentica con AutenticacionExtractor + delega)
+│   │   ├── UsuarioApi.java                  contrato OpenAPI de la consulta (unico endpoint autenticado)
+│   │   └── dto/RegistroRequest.java · RegistroResponse.java · UsuarioResponse.java
 │   ├── service/RegistroService.java         orquesta; hoy solo delega en el cliente gRPC
 │   └── grpc/
 │       ├── RegistroGrpcProperties.java          host/puerto de chat-registro (application.yml)
 │       ├── RegistroGrpcClientConfig.java         ManagedChannel + stub como beans
-│       └── RegistroGrpcClient.java               DTO <-> proto, errores gRPC <-> excepciones de dominio
+│       └── RegistroGrpcClient.java               DTO <-> proto (Registrar + BuscarUsuarioPorUid), errores gRPC <-> excepciones de dominio
 └── conversacion/                        enrutado hacia chat-conversacion (WebSocket bidi + REST unario)
     ├── web/
     │   ├── ChatWebSocketConfig.java          registra el handler en /ws/chat/{usuario}
@@ -147,6 +176,13 @@ microservicio y traduce la respuesta/error). El cliente REST nunca ve un mensaje
 > `localhost:9091`) corriendo para que sus endpoints completen con éxito; si alguno no está,
 > el gateway responde `503` solo en las llamadas que dependen de él. El propio arranque del
 > gateway no depende de ninguno: los canales gRPC conectan de forma perezosa.
+>
+> **`GET /api/v1/usuarios/{uid}` necesita Firebase configurado** (`FIREBASE_ENABLED=true` +
+> `FIREBASE_CREDENTIALS_PATH` apuntando a una clave de cuenta de servicio real): sin eso el
+> contexto de Spring no arranca (`AutenticacionExtractor` necesita un bean
+> `VerificadorTokenIdentidad`). Con `FIREBASE_ENABLED=false` tampoco arranca — solo tiene
+> sentido si aportas tú mismo un bean `VerificadorTokenIdentidad` alternativo (los tests lo
+> hacen, ver `src/test/resources/application.yml`).
 
 ### Variables de entorno
 
@@ -156,6 +192,8 @@ microservicio y traduce la respuesta/error). El cliente REST nunca ve un mensaje
 | `REGISTRO_GRPC_PORT` | `9090` | Puerto gRPC de `chat-registro` |
 | `CONVERSACION_GRPC_HOST` | `localhost` | Host gRPC de `chat-conversacion` |
 | `CONVERSACION_GRPC_PORT` | `9091` | Puerto gRPC de `chat-conversacion` |
+| `FIREBASE_ENABLED` | `true` | Si el gateway inicializa su propia integración con Firebase para validar tokens (`GET /api/v1/usuarios/{uid}`) |
+| `FIREBASE_CREDENTIALS_PATH` | *(vacío = ADC)* | Ruta a la clave de cuenta de servicio (mismo proyecto de Firebase que `chat-registro`, pero **no** el mismo fichero necesariamente — cualquier clave del mismo proyecto sirve para verificar) |
 | `CORS_ALLOWED_ORIGINS` | `http://localhost:3000` | Orígenes permitidos para `/api/**` |
 | `CORS_ALLOW_CREDENTIALS` | `false` | Si se permiten cookies/credenciales en CORS |
 | `WEBSOCKET_ALLOWED_ORIGINS` | `http://localhost:3000` | Orígenes permitidos para `/ws/**` (independiente de `CORS_ALLOWED_ORIGINS`) |
@@ -165,11 +203,76 @@ microservicio y traduce la respuesta/error). El cliente REST nunca ve un mensaje
 | Registro | `POST` http://localhost:8080/api/v1/registro |
 | Chat (WebSocket) | ws://localhost:8080/ws/chat/{usuario} |
 | Historial de chat | `GET` http://localhost:8080/api/v1/conversaciones/{usuarioA}/{usuarioB} |
+| Datos de usuario (autenticado) | `GET` http://localhost:8080/api/v1/usuarios/{uid} |
 | Swagger UI | http://localhost:8080/swagger-ui.html |
 | OpenAPI JSON | http://localhost:8080/v3/api-docs |
 | Actuator health | http://localhost:8080/actuator/health |
 
-Tests: `./gradlew test` · Empaquetar: `./gradlew bootJar` · Docker: `docker build -t chat-gateway .`
+Tests: `./gradlew test` · Empaquetar: `./gradlew bootJar` · Contenedor: ver más abajo.
+
+## Contenedor (Docker / Podman)
+
+El [`Dockerfile`](Dockerfile) hace un build multi-etapa: compila con Gradle sobre una imagen
+JDK y corre el jar resultante sobre una imagen JRE más liviana, con un usuario no-root. Los
+ejemplos usan `podman`, pero son intercambiables con `docker` (misma sintaxis).
+
+### Construir la imagen
+
+```bash
+podman build -t chat-gateway .
+```
+
+### Levantar el contenedor
+
+```bash
+podman run --rm -p 8080:8080 chat-gateway
+```
+
+Publica el puerto `8080` (REST + WebSocket) del contenedor al mismo puerto del host.
+
+> **`chat-registro`/`chat-conversacion` corriendo en el host, no en un contenedor.** Dentro del
+> contenedor, `localhost` apunta al propio contenedor, no al host — los defaults de
+> `REGISTRO_GRPC_HOST`/`CONVERSACION_GRPC_HOST` (`localhost`) no van a alcanzarlos. Usa el
+> hostname especial que resuelve al host: `host.containers.internal` en Podman
+> (`host.docker.internal` en Docker Desktop):
+>
+> ```bash
+> podman run --rm -p 8080:8080 \
+>   -e REGISTRO_GRPC_HOST=host.containers.internal \
+>   -e CONVERSACION_GRPC_HOST=host.containers.internal \
+>   chat-gateway
+> ```
+>
+> Si en cambio los tres corren como contenedores en una misma red (`podman network create` /
+> `docker network create` + `--network` en cada `run`), usa ahí el nombre de cada contenedor en
+> vez del hostname especial.
+
+Cualquier variable de la tabla de arriba (`CORS_ALLOWED_ORIGINS`, `WEBSOCKET_ALLOWED_ORIGINS`,
+puertos gRPC...) se pasa igual, con `-e NOMBRE=valor`. La imagen **no** lleva ninguna
+credencial de Firebase dentro — se monta en runtime, igual que en `chat-registro`:
+
+```bash
+podman run --rm -p 8080:8080 \
+  -e FIREBASE_ENABLED=true \
+  -e FIREBASE_CREDENTIALS_PATH=/run/secrets/firebase-service-account.json \
+  -v /ruta/local/firebase-service-account.json:/run/secrets/firebase-service-account.json:ro \
+  chat-gateway
+```
+
+### Verificar que arrancó
+
+```bash
+curl http://localhost:8080/actuator/health
+# {"groups":["liveness","readiness"],"status":"UP"}
+```
+
+Un `503` en `/api/v1/registro` o en `/api/v1/conversaciones/**` con el contenedor recién
+levantado es esperable si `chat-registro`/`chat-conversacion` todavía no están arriba o no se
+les indicó el host correcto — no es un fallo del propio gateway (ver tabla de errores más
+abajo).
+
+Detener: `podman stop <container-id>` (o ejecuta con `--name chat-gateway` para referenciarlo
+por nombre en vez de buscar el ID con `podman ps`).
 
 ## Contrato de errores
 
@@ -192,5 +295,7 @@ Todas las respuestas de error siguen RFC 9457:
 | `ResourceNotFoundException` | 404 |
 | `DuplicateResourceException` | 409 |
 | `ValidationException` / Bean Validation (`@Valid`) | 400 con lista `errors` |
+| `UnauthorizedException` (solo en `GET /api/v1/usuarios/{uid}`) | 401 |
+| `ForbiddenException` (solo en `GET /api/v1/usuarios/{uid}`) | 403 |
 | `ServiceUnavailableException` | 503 |
 | cualquier otra | 500 (mensaje genérico, traza solo en logs) |
