@@ -1,0 +1,100 @@
+package com.arquetipo.demo.registro.web;
+
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+
+import com.arquetipo.demo.common.auth.AutenticacionExtractor;
+import com.arquetipo.demo.common.exception.ResourceNotFoundException;
+import com.arquetipo.demo.common.exception.UnauthorizedException;
+import com.arquetipo.demo.registro.service.RegistroService;
+import com.arquetipo.demo.registro.web.dto.UsuarioResponse;
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
+import org.springframework.http.HttpHeaders;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import org.springframework.test.web.servlet.MockMvc;
+
+/**
+ * La autenticación real (Firebase) se prueba en {@code AutenticacionExtractorTest} y
+ * {@code FirebaseVerificadorTokenIdentidadTest}; aquí solo se mockea
+ * {@link AutenticacionExtractor} para probar el enrutado y la autorización propias del
+ * controlador (que el {@code uid} autenticado tenga que coincidir con el {@code uid} pedido).
+ */
+@WebMvcTest(UsuarioController.class)
+class UsuarioControllerTest {
+
+	@Autowired
+	private MockMvc mockMvc;
+
+	@MockitoBean
+	private RegistroService registroService;
+
+	@MockitoBean
+	private AutenticacionExtractor autenticacion;
+
+	@Test
+	void obtenerUsuario_tokenDelMismoUsuario_devuelve200ConLosDatos() throws Exception {
+		when(autenticacion.uidAutenticado("Bearer token-de-mateo")).thenReturn("uid-mateo");
+		when(registroService.obtenerUsuario("uid-mateo"))
+				.thenReturn(new UsuarioResponse("mateo", "mateo@example.com"));
+
+		mockMvc.perform(get("/api/v1/usuarios/uid-mateo")
+						.header(HttpHeaders.AUTHORIZATION, "Bearer token-de-mateo"))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.username").value("mateo"))
+				.andExpect(jsonPath("$.email").value("mateo@example.com"));
+	}
+
+	@Test
+	void obtenerUsuario_tokenDeOtroUsuario_devuelve403SinLlamarAlServicio() throws Exception {
+		when(autenticacion.uidAutenticado("Bearer token-de-ana")).thenReturn("uid-ana");
+
+		mockMvc.perform(get("/api/v1/usuarios/uid-mateo")
+						.header(HttpHeaders.AUTHORIZATION, "Bearer token-de-ana"))
+				.andExpect(status().isForbidden())
+				.andExpect(jsonPath("$.type").value("urn:problem-type:forbidden"));
+
+		verify(registroService, never()).obtenerUsuario(any());
+	}
+
+	@Test
+	void obtenerUsuario_sinCabeceraAuthorization_devuelve401SinLlamarAlServicio() throws Exception {
+		when(autenticacion.uidAutenticado(null))
+				.thenThrow(new UnauthorizedException("Falta la cabecera Authorization: Bearer <idToken>"));
+
+		mockMvc.perform(get("/api/v1/usuarios/uid-mateo"))
+				.andExpect(status().isUnauthorized())
+				.andExpect(jsonPath("$.type").value("urn:problem-type:unauthorized"));
+
+		verify(registroService, never()).obtenerUsuario(any());
+	}
+
+	@Test
+	void obtenerUsuario_tokenInvalido_devuelve401() throws Exception {
+		when(autenticacion.uidAutenticado("Bearer token-invalido"))
+				.thenThrow(new UnauthorizedException("Token de identidad invalido o expirado"));
+
+		mockMvc.perform(get("/api/v1/usuarios/uid-mateo")
+						.header(HttpHeaders.AUTHORIZATION, "Bearer token-invalido"))
+				.andExpect(status().isUnauthorized());
+
+		verify(registroService, never()).obtenerUsuario(any());
+	}
+
+	@Test
+	void obtenerUsuario_sinUsuarioConEseUid_devuelve404() throws Exception {
+		when(autenticacion.uidAutenticado("Bearer token-valido")).thenReturn("uid-inexistente");
+		when(registroService.obtenerUsuario("uid-inexistente"))
+				.thenThrow(new ResourceNotFoundException("Usuario no encontrado"));
+
+		mockMvc.perform(get("/api/v1/usuarios/uid-inexistente")
+						.header(HttpHeaders.AUTHORIZATION, "Bearer token-valido"))
+				.andExpect(status().isNotFound());
+	}
+}

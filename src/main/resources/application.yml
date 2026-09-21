@@ -2,6 +2,15 @@ spring:
   application:
     name: chat-gateway
 
+firebase:
+  # El gateway es el UNICO punto del sistema que valida tokens de identidad (Authorization:
+  # Bearer <idToken>) -- ver com.arquetipo.demo.common.auth. false desactiva por completo la
+  # inicializacion del SDK (los tests lo hacen).
+  enabled: ${FIREBASE_ENABLED:true}
+  # Ruta a la clave de la cuenta de servicio (mismo proyecto de Firebase que usa chat-registro
+  # para crear las cuentas). Vacio = credenciales por defecto del entorno (ADC).
+  credentials-path: ${FIREBASE_CREDENTIALS_PATH:}
+
 app:
   cors:
     # Origenes permitidos para /api/**. Lista separada por comas, cada uno con esquema +

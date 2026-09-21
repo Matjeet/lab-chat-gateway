@@ -1,8 +1,10 @@
 package com.arquetipo.demo.common.web;
 
 import com.arquetipo.demo.common.exception.DuplicateResourceException;
+import com.arquetipo.demo.common.exception.ForbiddenException;
 import com.arquetipo.demo.common.exception.ResourceNotFoundException;
 import com.arquetipo.demo.common.exception.ServiceUnavailableException;
+import com.arquetipo.demo.common.exception.UnauthorizedException;
 import com.arquetipo.demo.common.exception.ValidationException;
 import java.net.URI;
 import java.time.Instant;
@@ -50,6 +52,16 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
 				.toList();
 		body.setProperty("errors", errores);
 		return body;
+	}
+
+	@ExceptionHandler(UnauthorizedException.class)
+	public ProblemDetail handleUnauthorized(UnauthorizedException ex) {
+		return problem(HttpStatus.UNAUTHORIZED, "No autenticado", ex.getMessage(), "unauthorized");
+	}
+
+	@ExceptionHandler(ForbiddenException.class)
+	public ProblemDetail handleForbidden(ForbiddenException ex) {
+		return problem(HttpStatus.FORBIDDEN, "Acceso denegado", ex.getMessage(), "forbidden");
 	}
 
 	@ExceptionHandler(ServiceUnavailableException.class)

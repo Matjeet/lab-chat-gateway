@@ -3,6 +3,8 @@ package com.arquetipo.demo.registro.service;
 import com.arquetipo.demo.registro.grpc.RegistroGrpcClient;
 import com.arquetipo.demo.registro.web.dto.RegistroRequest;
 import com.arquetipo.demo.registro.web.dto.RegistroResponse;
+import com.arquetipo.demo.registro.web.dto.UsuarioResponse;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 /**
@@ -16,6 +18,7 @@ import org.springframework.stereotype.Service;
  * {@code Controller -> Service -> ...} del resto de servicios y como punto donde encajaria
  * orquestacion futura (p. ej. componer la respuesta con datos de otro microservicio).
  */
+@Slf4j
 @Service
 public class RegistroService {
 
@@ -26,6 +29,22 @@ public class RegistroService {
 	}
 
 	public RegistroResponse registrar(RegistroRequest request) {
-		return grpcClient.registrar(request);
+		log.debug(">> registrar(username='{}', email='{}')", request.username(), request.email());
+		RegistroResponse respuesta = grpcClient.registrar(request);
+		log.debug("<< registrar() -> OK, id={}", respuesta.id());
+		return respuesta;
+	}
+
+	/**
+	 * Resuelve los datos básicos del usuario con ese {@code uid} de Firebase. Se llama con un
+	 * {@code uid} ya autenticado y autorizado por
+	 * {@link com.arquetipo.demo.registro.web.UsuarioController} — este método (y
+	 * {@code chat-registro} por debajo) no ve ni verifica ningún token.
+	 */
+	public UsuarioResponse obtenerUsuario(String uid) {
+		log.debug(">> obtenerUsuario(uid='{}')", uid);
+		UsuarioResponse respuesta = grpcClient.buscarUsuarioPorUid(uid);
+		log.debug("<< obtenerUsuario() -> OK, username='{}'", respuesta.username());
+		return respuesta;
 	}
 }
