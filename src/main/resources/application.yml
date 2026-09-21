@@ -8,6 +8,10 @@ app:
     # host + puerto y SIN barra final (p. ej. "https://chat.example.com,http://localhost:3000").
     allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:3000}
     allow-credentials: ${CORS_ALLOW_CREDENTIALS:false}
+  websocket:
+    # Origenes permitidos para /ws/**. Variable independiente de CORS_ALLOWED_ORIGINS (el
+    # handshake de WebSocket no pasa por CORS), mismo criterio que chat-conversacion.
+    allowed-origins: ${WEBSOCKET_ALLOWED_ORIGINS:http://localhost:3000}
 
 server:
   port: 8080
@@ -40,3 +44,6 @@ servicios:
   registro:
     grpc-host: ${REGISTRO_GRPC_HOST:localhost}
     grpc-port: ${REGISTRO_GRPC_PORT:9090}
+  conversacion:
+    grpc-host: ${CONVERSACION_GRPC_HOST:localhost}
+    grpc-port: ${CONVERSACION_GRPC_PORT:9091}
