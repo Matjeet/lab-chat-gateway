@@ -73,30 +73,36 @@ metadata `usuario`, y traduce cada frame en los dos sentidos mientras la sesión
 `GET /api/v1/conversaciones/{usuarioA}/{usuarioB}?page&size&sort` — historial paginado,
 enrutado por una llamada unaria `ConversacionGrpcService/Historial`.
 
-`GET /api/v1/conversaciones/{usuario}/chats?cursor&size` — lista de chats de `usuario` con el
-último mensaje de cada uno, paginada por **cursor** (no página/offset, pensada para scroll
-infinito), enrutada a `ConversacionGrpcService/ListaChats`. Primer endpoint REST del gateway
-sin equivalente previo en `chat-conversacion` (nació directo como rpc gRPC).
+`GET /api/v1/conversaciones/{usuario}/chats?cursor&size` (**autenticado**, `Authorization:
+Bearer <idToken>`) — lista de chats de `usuario` con el último mensaje de cada uno, paginada
+por **cursor** (no página/offset, pensada para scroll infinito), enrutada a
+`ConversacionGrpcService/ListaChats`. Primer endpoint REST del gateway sin equivalente previo
+en `chat-conversacion` (nació directo como rpc gRPC). Mismo mecanismo de autenticación que
+`GET /api/v1/usuarios/{uid}` (ver más abajo): el gateway verifica el `idToken` él mismo y
+además resuelve el `username` del uid autenticado contra `chat-registro`
+(`RegistroService.obtenerUsuario`, la misma consulta del endpoint de abajo) para compararlo
+con `{usuario}` — un token válido de otro usuario responde `403`.
 
 Contrato completo (formato de los mensajes, reglas de entrega, paginación) en
 [`docs/contratos-api.md`](docs/contratos-api.md) §4.3, §4.4 y §4.5.
 
 ## Consulta de datos de usuario (vía `chat-registro`, autenticada)
 
-`GET /api/v1/usuarios/{uid}` con cabecera `Authorization: Bearer <idToken>` — **el único
-endpoint del gateway que exige autenticación**. `{uid}` es el identificador que asigna Firebase
-al crear la cuenta (no el `username`). **El gateway valida el `idToken` él mismo**, con su
-propia integración con Firebase Admin SDK (`common/auth`, independiente de la que usa
-`chat-registro` para crear cuentas): sin la cabecera, o con un token inválido/expirado,
-responde `401` sin llamar por gRPC; si el token es válido pero de otro uid, `403` — también sin
-llamar. Solo si todo coincide llama a `RegistroGrpcService/BuscarUsuarioPorUid` en
-`chat-registro`, pasando el `uid` **desnudo, nunca el token**.
+`GET /api/v1/usuarios/{uid}` con cabecera `Authorization: Bearer <idToken>` — **el primer
+endpoint del gateway que exigió autenticación** (el otro es `GET /api/v1/conversaciones/{usuario}/chats`,
+arriba). `{uid}` es el identificador que asigna Firebase al crear la cuenta (no el `username`).
+**El gateway valida el `idToken` él mismo**, con su propia integración con Firebase Admin SDK
+(`common/auth`, independiente de la que usa `chat-registro` para crear cuentas): sin la
+cabecera, o con un token inválido/expirado, responde `401` sin llamar por gRPC; si el token es
+válido pero de otro uid, `403` — también sin llamar. Solo si todo coincide llama a
+`RegistroGrpcService/BuscarUsuarioPorUid` en `chat-registro`, pasando el `uid` **desnudo,
+nunca el token**.
 
 ```json
 { "username": "mateo", "email": "mateo@example.com" }
 ```
 
-Contrato completo (los tres códigos de error posibles, ejemplos, modelos TypeScript) en
+Contrato completo (los códigos de error posibles, ejemplos, modelos TypeScript) en
 [`docs/contratos-api.md`](docs/contratos-api.md) §4.2.
 
 ## Documentación de la API
@@ -131,7 +137,7 @@ com.arquetipo.demo
 │   │   ├── DuplicateResourceException       → 409
 │   │   ├── ValidationException              → 400 con errors[] (espejo de Bean Validation, vía gRPC)
 │   │   ├── UnauthorizedException            → 401 (lo lanza el propio gateway, nunca un microservicio)
-│   │   ├── ForbiddenException                → 403 (uid autenticado no coincide con el recurso pedido)
+│   │   ├── ForbiddenException                → 403 (identidad autenticada no coincide con el recurso pedido)
 │   │   └── ServiceUnavailableException      → 503 (microservicio destino caido)
 │   └── web/GlobalExceptionHandler.java      excepciones → Problem Details (RFC 9457)
 ├── registro/                            enrutado hacia chat-registro (REST unario)
@@ -139,7 +145,7 @@ com.arquetipo.demo
 │   │   ├── RegistroController.java          POST /api/v1/registro (valida + delega)
 │   │   ├── RegistroApi.java                 contrato OpenAPI del registro
 │   │   ├── UsuarioController.java           GET /api/v1/usuarios/{uid} (autentica con AutenticacionExtractor + delega)
-│   │   ├── UsuarioApi.java                  contrato OpenAPI de la consulta (unico endpoint autenticado)
+│   │   ├── UsuarioApi.java                  contrato OpenAPI de la consulta (primer endpoint autenticado)
 │   │   └── dto/RegistroRequest.java · RegistroResponse.java · UsuarioResponse.java
 │   ├── service/RegistroService.java         orquesta; hoy solo delega en el cliente gRPC
 │   └── grpc/
@@ -151,7 +157,8 @@ com.arquetipo.demo
     │   ├── ChatWebSocketConfig.java          registra el handler en /ws/chat/{usuario}
     │   ├── ChatWebSocketHandler.java         puente: frame de texto <-> stream de gRPC
     │   ├── UsuarioHandshakeInterceptor.java  valida el {usuario} de la URL antes de abrir el stream
-    │   ├── ConversacionController.java       GET /api/v1/conversaciones/{usuarioA}/{usuarioB} y /{usuario}/chats
+    │   ├── ConversacionController.java       GET /api/v1/conversaciones/{usuarioA}/{usuarioB} (sin auth) y
+    │   │                                      /{usuario}/chats (autenticado, resuelve el username via RegistroService)
     │   ├── ConversacionApi.java              contrato OpenAPI del historial y de la lista de chats
     │   └── dto/MensajeEntrante.java · MensajeResponse.java · PageResponse.java · ChatResumen.java · CursorPage.java
     ├── service/ConversacionService.java     orquesta; delega en el cliente gRPC
@@ -208,7 +215,7 @@ microservicio y traduce la respuesta/error). El cliente REST nunca ve un mensaje
 | Registro | `POST` http://localhost:8080/api/v1/registro |
 | Chat (WebSocket) | ws://localhost:8080/ws/chat/{usuario} |
 | Historial de chat | `GET` http://localhost:8080/api/v1/conversaciones/{usuarioA}/{usuarioB} |
-| Lista de chats | `GET` http://localhost:8080/api/v1/conversaciones/{usuario}/chats |
+| Lista de chats (autenticado) | `GET` http://localhost:8080/api/v1/conversaciones/{usuario}/chats |
 | Datos de usuario (autenticado) | `GET` http://localhost:8080/api/v1/usuarios/{uid} |
 | Swagger UI | http://localhost:8080/swagger-ui.html |
 | OpenAPI JSON | http://localhost:8080/v3/api-docs |

@@ -44,7 +44,7 @@ añade las notas de integración que no caben en las anotaciones.
 | Formato de errores (REST) | `application/problem+json` (RFC 9457) — el WebSocket no lo usa, ver §3 |
 | Codificación | UTF-8 |
 | Fechas y horas | ISO-8601 en UTC, con precisión de microsegundos — ej. `2026-09-09T03:13:36.766818Z` |
-| Autenticación | Ninguna en `POST /api/v1/registro`, `GET /ws/chat/**` ni `GET /api/v1/conversaciones/**` (incluida `/chats`). `GET /api/v1/usuarios/{uid}` es la única excepción — exige `Authorization: Bearer <idToken>`, ver §4.2. |
+| Autenticación | Ninguna en `POST /api/v1/registro`, `GET /ws/chat/**` ni `GET /api/v1/conversaciones/{usuarioA}/{usuarioB}`. `GET /api/v1/usuarios/{uid}` (§4.2) y `GET /api/v1/conversaciones/{usuario}/chats` (§4.5) exigen `Authorization: Bearer <idToken>`. |
 | CORS (endpoints REST) | Habilitado para `/api/**` en el propio gateway (no en cada microservicio). Orígenes permitidos vía `CORS_ALLOWED_ORIGINS` (lista separada por comas). |
 | Orígenes permitidos (WebSocket) | `WEBSOCKET_ALLOWED_ORIGINS` (lista separada por comas). Variable **independiente** de `CORS_ALLOWED_ORIGINS`: el *handshake* de WebSocket no pasa por CORS. |
 
@@ -89,9 +89,9 @@ Toda respuesta con código `4xx` o `5xx` de un endpoint REST tiene
 |---|---|---|---|
 | `urn:problem-type:validation-error` | 400 | El cuerpo no cumple las reglas de formato (incluye `errors[]`, vacío si el error no es de un campo concreto — ver `cursor` en `GET /api/v1/conversaciones/{usuario}/chats`). | `POST /api/v1/registro`, `GET /api/v1/conversaciones/{usuario}/chats` |
 | `urn:problem-type:duplicate-resource` | 409 | Los datos entran en conflicto con un usuario existente. | `POST /api/v1/registro` |
-| `urn:problem-type:unauthorized` | 401 | Falta la cabecera `Authorization`, o el `idToken` es inválido/expirado. | `GET /api/v1/usuarios/{uid}` |
-| `urn:problem-type:forbidden` | 403 | El `idToken` es válido pero de un uid distinto al pedido. | `GET /api/v1/usuarios/{uid}` |
-| `urn:problem-type:resource-not-found` | 404 | El recurso solicitado no existe. | `GET /api/v1/usuarios/{uid}` |
+| `urn:problem-type:unauthorized` | 401 | Falta la cabecera `Authorization`, o el `idToken` es inválido/expirado. | `GET /api/v1/usuarios/{uid}`, `GET /api/v1/conversaciones/{usuario}/chats` |
+| `urn:problem-type:forbidden` | 403 | El `idToken` es válido pero de un uid (o del `username` que resuelve ese uid) distinto al pedido. | `GET /api/v1/usuarios/{uid}`, `GET /api/v1/conversaciones/{usuario}/chats` |
+| `urn:problem-type:resource-not-found` | 404 | El recurso solicitado no existe. | `GET /api/v1/usuarios/{uid}`, `GET /api/v1/conversaciones/{usuario}/chats` (sin perfil en `chat-registro` para el uid autenticado) |
 | `urn:problem-type:service-unavailable` | 503 | El microservicio destino no está disponible. **Propio del gateway**: el microservicio en solitario nunca lo devuelve. | Todos los REST |
 | `urn:problem-type:internal-error` | 500 | Error inesperado. `detail` siempre genérico; el detalle real queda en logs del servidor. | Todos los REST |
 
@@ -454,18 +454,27 @@ curl "http://localhost:8080/api/v1/conversaciones/mateo/ana?page=0&size=20&sort=
 
 ---
 
-### 4.5 `GET /api/v1/conversaciones/{usuario}/chats` — Lista de chats de un usuario
+### 4.5 `GET /api/v1/conversaciones/{usuario}/chats` — Lista de chats de un usuario (autenticado)
 
-Un resumen por cada persona con la que `usuario` tiene al menos un mensaje (en cualquiera de
-los dos sentidos), con el último mensaje de esa conversación, ordenados por fecha de ese
-último mensaje (más reciente primero). Enrutado por una llamada unaria
+**Segundo endpoint del gateway que exige autenticación** (el primero es §4.2). Un resumen por
+cada persona con la que `usuario` tiene al menos un mensaje (en cualquiera de los dos
+sentidos), con el último mensaje de esa conversación, ordenados por fecha de ese último
+mensaje (más reciente primero). Enrutado por una llamada unaria
 `ConversacionGrpcService/ListaChats`. **No existía antes de este gateway**: nació directo
 como rpc gRPC en `chat-conversacion` (sin equivalente REST ni WebSocket), y este es el primer
 lugar donde se expone por REST.
 
-> Convive con `GET /api/v1/conversaciones/{usuarioA}/{usuarioB}` (§4.4) sin ambigüedad de
-> rutas: el segmento final `chats` es literal, y Spring prioriza un segmento literal sobre uno
-> con variable (`{usuarioB}`) al resolver una petición concreta.
+> Convive con `GET /api/v1/conversaciones/{usuarioA}/{usuarioB}` (§4.4, sin autenticación) sin
+> ambigüedad de rutas: el segmento final `chats` es literal, y Spring prioriza un segmento
+> literal sobre uno con variable (`{usuarioB}`) al resolver una petición concreta.
+
+> **Quién verifica qué.** Mismo mecanismo que §4.2: el gateway valida el `idToken` **él
+> mismo** (`common.auth`, Firebase Admin SDK) — a `chat-conversacion` nunca le llega el token.
+> La diferencia es que aquí el recurso lo identifica un `username` de `chat-registro`, no un
+> uid de Firebase: el gateway resuelve el `username` del uid autenticado llamando a
+> `chat-registro` (`RegistroGrpcService/BuscarUsuarioPorUid`, la misma consulta que usa §4.2) y
+> compara ese `username` contra `{usuario}` — un token válido de otro usuario no autoriza a
+> leer esta lista.
 
 #### Petición
 
@@ -473,8 +482,9 @@ lugar donde se expone por REST.
 |---|---|
 | Método | `GET` |
 | Path | `/api/v1/conversaciones/{usuario}/chats` |
+| Path param | `usuario` — el `username` de `chat-registro` cuyos chats se piden (**no** es el uid de Firebase) |
+| Headers | `Authorization: Bearer <idToken>` — el token de ID de Firebase de quien pregunta |
 | Query params | `cursor` (opcional; el `nextCursor` de una página anterior, vacío = primera página), `size` (por defecto `20`, máx. `100`) |
-| Autenticación | Ninguna |
 
 > **Paginado por cursor, no por página/offset** — a propósito, porque el orden de la lista
 > cambia con cada mensaje nuevo (un offset se desincroniza). Manda `cursor` tal cual llegó en
@@ -513,10 +523,45 @@ inventado) responde `400` con `type: urn:problem-type:validation-error` y `error
 error no es de un campo del cuerpo, es del propio parámetro `cursor` — `detail` trae el
 mensaje real en este caso concreto).
 
+#### Respuesta `401 Unauthorized`
+
+Misma causa y misma forma que §4.2: falta la cabecera `Authorization`, viene sin el prefijo
+`Bearer `, o el `idToken` es inválido/expirado/revocado. El gateway responde **sin llamar por
+gRPC** a ningún microservicio.
+
+#### Respuesta `403 Forbidden`
+
+El `idToken` es válido, pero el `username` que resuelve ese uid en `chat-registro` es
+**distinto** al `usuario` pedido en la URL:
+
+```json
+{
+  "type": "urn:problem-type:forbidden",
+  "title": "Acceso denegado",
+  "status": 403,
+  "detail": "El token no autoriza a consultar los chats de este usuario",
+  "instance": "/api/v1/conversaciones/mateo/chats",
+  "timestamp": "2026-09-21T20:53:47.441193Z"
+}
+```
+
+#### Respuesta `404 Not Found`
+
+El `idToken` es válido pero **no existe ningún perfil en `chat-registro` para ese uid**
+todavía (cuenta creada en Firebase, alta en `chat-registro` pendiente) — igual que puede pasar
+en §4.2.
+
+#### Respuesta `503` / `500`
+
+Mismo criterio que el resto del gateway: `503` si `chat-registro` (al resolver el `username`)
+o `chat-conversacion` (al listar los chats) no responden; `500` ante cualquier otro fallo
+inesperado.
+
 #### Ejemplo `curl`
 
 ```bash
-curl "http://localhost:8080/api/v1/conversaciones/mateo/chats?size=20"
+curl -H "Authorization: Bearer <idToken>" \
+  "http://localhost:8080/api/v1/conversaciones/mateo/chats?size=20"
 ```
 
 ---
@@ -551,13 +596,19 @@ curl "http://localhost:8080/api/v1/conversaciones/mateo/chats?size=20"
     en el cliente antes de mandar (§4.3); no hay *frame* de error.
 12. **Carga el historial por REST al abrir la pantalla de chat, y luego conéctate al
     WebSocket** para los mensajes nuevos: son dos canales independientes.
-13. **No hay autenticación en el chat todavía** (`GET /ws/chat/**`, `GET /api/v1/conversaciones/**`,
-    incluida `/chats`) — no trates ese flujo como seguro para datos reales hasta que se
-    resuelva (ver `CLAUDE.md`).
+13. **El envío/recepción de mensajes y el historial no tienen autenticación todavía**
+    (`GET /ws/chat/**`, `GET /api/v1/conversaciones/{usuarioA}/{usuarioB}`) — no trates ese
+    flujo como seguro para datos reales hasta que se resuelva (ver `CLAUDE.md`).
+    `GET /api/v1/conversaciones/{usuario}/chats` (§4.5) es la excepción: sí exige el mismo
+    `idToken` que §4.2.
 14. **`GET /api/v1/conversaciones/{usuario}/chats` es la pantalla de "conversaciones", no el
     chat en sí.** Úsalo para listar con quién ha hablado `usuario` y el último mensaje de cada
     uno (p. ej. al abrir la app); abre el WebSocket (§4.3) o pide el historial (§4.4) solo
-    cuando el usuario entra a un chat concreto.
+    cuando el usuario entra a un chat concreto — ninguno de los dos hereda la autenticación de
+    §4.5, son llamadas independientes.
+15. **El `idToken` de `GET /api/v1/conversaciones/{usuario}/chats` se obtiene igual que en
+    §4.2** (`currentUser.getIdToken()` del SDK de Firebase) — no hace falta pedirlo dos veces
+    si ya lo tienes de resolver "tu usuario" con `GET /api/v1/usuarios/{uid}`.
 
 ---
 
@@ -666,6 +717,11 @@ negocio propia (esa vive en el microservicio destino):
   mismo patrón unario que el registro: `ConversacionController` → `ConversacionService` →
   `ConversacionGrpcClient` (llamadas `Historial`/`ListaChats`) — el `cursor` de esta última
   viaja tal cual, sin decodificarlo: solo `chat-conversacion` sabe interpretarlo.
+  `ConversacionController.listaChats` **sí autentica**, igual que `UsuarioController`: llama a
+  `AutenticacionExtractor` para verificar el `idToken` y, como el recurso lo identifica un
+  `username` y no un uid, resuelve ese `username` con `RegistroService.obtenerUsuario` (la
+  misma dependencia cruzada `conversacion` → `registro` que existe solo para esta
+  comprobación) antes de comparar y delegar en `ConversacionService`.
 
 Ver también [`arquitectura-gateway.md`](arquitectura-gateway.md) para el patrón completo y
 cómo se añade un microservicio nuevo al gateway.
@@ -686,6 +742,7 @@ cómo se añade un microservicio nuevo al gateway.
 
 | Fecha | Cambio |
 |---|---|
+| 2026-09-21 | `GET /api/v1/conversaciones/{usuario}/chats` pasa a exigir autenticación (`Authorization: Bearer <idToken>`), mismo mecanismo que §4.2: el gateway resuelve el `username` del uid autenticado contra `chat-registro` y lo compara con `{usuario}` (403 si no coincide) — antes de esto no tenía ningún control de acceso. |
 | 2026-09-20 (3) | Se añade `GET /api/v1/conversaciones/{usuario}/chats`, enrutando por gRPC a `ConversacionGrpcService/ListaChats` — primer endpoint REST del gateway sin equivalente previo en `chat-conversacion` (paginado por cursor, no por página/offset). |
 | 2026-09-20 (2) | El contrato externo de `GET /api/v1/usuarios/{uid}` no cambia (mismo `401`/`403`/`404`), pero por dentro el gateway pasa a validar el `idToken` **él mismo** (integración propia con Firebase Admin SDK) en vez de reenviarlo a `chat-registro` — es una decisión de arquitectura: el gateway es el único punto del sistema que valida tokens de identidad, para que futuros microservicios con autenticación no necesiten integrarse cada uno con Firebase. Ver `arquitectura-gateway.md`. |
 | 2026-09-20 (1) | Se fusionan en este único documento los contratos que antes vivían separados en `contratos-api-conversacion.md` y `contratos-api-usuarios.md` (WebSocket + historial de chat, y consulta autenticada de usuario) — ambos archivos se eliminan, este es ahora el contrato REST/WebSocket completo del gateway. |

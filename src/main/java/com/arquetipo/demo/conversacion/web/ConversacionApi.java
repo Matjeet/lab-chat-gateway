@@ -11,6 +11,7 @@ import io.swagger.v3.oas.annotations.media.ExampleObject;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.http.MediaType;
 import org.springframework.http.ProblemDetail;
@@ -74,6 +75,12 @@ public interface ConversacionApi {
 
 	@Operation(summary = "Lista de chats de un usuario, con el ultimo mensaje de cada uno",
 			description = """
+					Requiere `Authorization: Bearer <idToken>` con el token de ID de Firebase de
+					quien pregunta — mismo mecanismo que `GET /api/v1/usuarios/{uid}`: el gateway
+					verifica el token él mismo, resuelve el `username` del uid autenticado (contra
+					`chat-registro`) y comprueba que coincide con `usuario`; un token válido de otro
+					usuario no autoriza a leer esta lista.
+
 					Un resumen por cada persona con la que `usuario` tiene al menos un mensaje (en
 					cualquiera de los dos sentidos), con el ultimo mensaje de esa conversacion,
 					ordenados por fecha de ese ultimo mensaje (mas reciente primero). Paginado por
@@ -81,7 +88,8 @@ public interface ConversacionApi {
 					`nextCursor` de la respuesta anterior tal cual, sin modificarlo, para pedir la
 					siguiente pagina. Si `usuario` no tiene ningun mensaje con nadie, responde `200`
 					con `content: []`, nunca `404`.
-					""")
+					""",
+			security = @SecurityRequirement(name = "bearerAuth"))
 	@ApiResponses({
 			@ApiResponse(
 					responseCode = "200",
@@ -114,14 +122,27 @@ public interface ConversacionApi {
 							mediaType = MediaType.APPLICATION_PROBLEM_JSON_VALUE,
 							schema = @Schema(implementation = ProblemDetail.class))),
 			@ApiResponse(
+					responseCode = "401",
+					description = "Falta la cabecera Authorization, o el idToken es inválido/expirado",
+					content = @Content(
+							mediaType = MediaType.APPLICATION_PROBLEM_JSON_VALUE,
+							schema = @Schema(implementation = ProblemDetail.class))),
+			@ApiResponse(
+					responseCode = "403",
+					description = "El idToken es válido pero pertenece a un usuario distinto al pedido",
+					content = @Content(
+							mediaType = MediaType.APPLICATION_PROBLEM_JSON_VALUE,
+							schema = @Schema(implementation = ProblemDetail.class))),
+			@ApiResponse(
 					responseCode = "503",
-					description = "chat-conversacion no esta disponible en este momento.",
+					description = "chat-conversacion o chat-registro no estan disponibles en este momento.",
 					content = @Content(
 							mediaType = MediaType.APPLICATION_PROBLEM_JSON_VALUE,
 							schema = @Schema(implementation = ProblemDetail.class)))
 	})
 	CursorPage<ChatResumen> listaChats(
 			@Parameter(description = "Usuario cuya lista de chats se pide", example = "mateo") String usuario,
+			String authorization,
 			@Parameter(description = "El nextCursor de una pagina anterior. Vacio = primera pagina.") String cursor,
 			@Parameter(description = "Tamaño de pagina (maximo 100, aplicado por chat-conversacion)") int size);
 }

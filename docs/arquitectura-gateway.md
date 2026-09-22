@@ -64,8 +64,8 @@ conversacion/
 │   ├── ChatWebSocketConfig.java          registra el handler en /ws/chat/{usuario}
 │   ├── ChatWebSocketHandler.java         puente: frame de texto <-> stream gRPC (ver mas abajo)
 │   ├── UsuarioHandshakeInterceptor.java  valida el {usuario} de la URL antes de abrir el stream
-│   ├── ConversacionController.java       REST del historial y de la lista de chats (unarios,
-│   │                                      mismo patron que registro)
+│   ├── ConversacionController.java       REST del historial (sin auth) y de la lista de chats
+│   │                                      (autenticado, ver "Autenticacion" mas abajo)
 │   ├── ConversacionApi.java              contrato OpenAPI de ambos
 │   └── dto/ (MensajeEntrante, MensajeResponse, PageResponse, ChatResumen, CursorPage)
 ├── service/
@@ -128,6 +128,28 @@ if (!uidAutenticado.equals(uid)) {
 }
 return service.obtenerUsuario(uid);                                   // a chat-registro solo llega el uid
 ```
+
+**Cuando el recurso no lo identifica un uid** (`ConversacionController.listaChats`, sobre
+`GET /api/v1/conversaciones/{usuario}/chats`): el mismo patrón, con un paso intermedio. El
+recurso está en `username` (de `chat-registro`), no en el uid que devuelve
+`AutenticacionExtractor` — así que antes de comparar hay que resolver uno a partir del otro,
+siempre contra `chat-registro` (la única fuente de verdad de esa relación):
+
+```java
+String uidAutenticado = autenticacion.uidAutenticado(authorization);        // 401 si falta o es invalido
+String usernameAutenticado = registroService.obtenerUsuario(uidAutenticado).username(); // 404 si no tiene perfil
+if (!usernameAutenticado.equals(usuario)) {
+    throw new ForbiddenException("...");                                    // 403 si es de otro usuario
+}
+return service.listaChats(usuario, cursor, size);
+```
+
+Esto hace que `ConversacionController` dependa de `RegistroService` (`conversacion` →
+`registro`, la única dependencia cruzada entre features del gateway) — deliberado: el uid es
+un dato de Firebase, el `username` es un dato de `chat-registro`, y solo `chat-registro` sabe
+traducir entre los dos. Un microservicio futuro cuyo recurso también se identifique por algo
+distinto al uid (un id propio, un slug, etc.) seguiría este mismo patrón: resolver primero
+contra quien sea dueño de esa relación, comparar después.
 
 **Por qué así, y no dejando que cada microservicio valide su propio token:**
 
