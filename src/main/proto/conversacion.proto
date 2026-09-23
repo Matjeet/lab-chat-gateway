@@ -23,6 +23,13 @@ service ConversacionGrpcService {
   // Historial paginado de una conversacion, equivalente a
   // GET /api/v1/conversaciones/{usuarioA}/{usuarioB}. Unario, sin streaming.
   rpc Historial (HistorialRequest) returns (HistorialResponse);
+
+  // Lista de chats de un usuario: un resumen por cada persona con la que tiene al menos un
+  // mensaje (en cualquiera de los dos sentidos), con el ultimo mensaje de esa conversacion,
+  // ordenados por fecha de ese ultimo mensaje (mas reciente primero). Paginado por cursor
+  // (no por pagina/offset): pensado para scroll infinito en el cliente. Unario, sin streaming
+  // (una respuesta = una pagina).
+  rpc ListaChats (ListaChatsRequest) returns (ListaChatsResponse);
 }
 
 // Lo que manda el cliente por el stream de Chat. El remitente no viaja aqui: lo determina la
@@ -68,4 +75,33 @@ message HistorialResponse {
   bool first = 6;
   bool last = 7;
   bool empty = 8;
+}
+
+message ListaChatsRequest {
+  // Usuario cuya lista de chats se pide. No se valida en formato (igual que usuario_a/
+  // usuario_b en HistorialRequest): un valor que no exista simplemente no tiene chats.
+  string usuario = 1;
+  // Cursor opaco devuelto como next_cursor en la respuesta anterior. Vacio = primera pagina.
+  // Un valor con formato invalido (no viene de un next_cursor real de este servicio)
+  // devuelve INVALID_ARGUMENT.
+  string cursor = 2;
+  // 0 (o ausente) usa el default del servidor (20); se recorta al maximo (100).
+  int32 size = 3;
+}
+
+// Resumen de una conversacion 1 a 1 desde el punto de vista de ListaChatsRequest.usuario.
+message ChatResumen {
+  // La otra persona de la conversacion (nunca ListaChatsRequest.usuario).
+  string otro_usuario = 1;
+  // El mensaje mas reciente entre ambos, en cualquiera de los dos sentidos.
+  MensajeEntregado ultimo_mensaje = 2;
+}
+
+message ListaChatsResponse {
+  // Ordenado por ultimo_mensaje.enviado_en descendente (chat mas reciente primero).
+  repeated ChatResumen content = 1;
+  // Cursor para pedir la siguiente pagina (ListaChatsRequest.cursor). Vacio si has_more es
+  // false: no lo mandes de vuelta en ese caso, no hay garantia de que siga siendo valido.
+  string next_cursor = 2;
+  bool has_more = 3;
 }

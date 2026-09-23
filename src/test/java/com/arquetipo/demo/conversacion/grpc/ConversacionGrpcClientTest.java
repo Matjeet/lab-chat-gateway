@@ -4,6 +4,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.arquetipo.demo.common.exception.ServiceUnavailableException;
+import com.arquetipo.demo.common.exception.ValidationException;
+import com.arquetipo.demo.conversacion.web.dto.CursorPage;
 import com.arquetipo.demo.conversacion.web.dto.MensajeEntrante;
 import com.arquetipo.demo.conversacion.web.dto.MensajeResponse;
 import com.arquetipo.demo.conversacion.web.dto.PageResponse;
@@ -233,5 +235,67 @@ class ConversacionGrpcClientTest {
 
 		assertThatThrownBy(() -> client.historial("mateo", "ana", 0, 20, ""))
 				.isNotInstanceOf(ServiceUnavailableException.class);
+	}
+
+	@Test
+	void listaChats_respuestaValida_seTraduceACursorPage() throws IOException {
+		ConversacionGrpcClient client = clientePara(new ConversacionGrpcServiceGrpc.ConversacionGrpcServiceImplBase() {
+			@Override
+			public void listaChats(ListaChatsRequest request, StreamObserver<ListaChatsResponse> responseObserver) {
+				responseObserver.onNext(ListaChatsResponse.newBuilder()
+						.addContent(ChatResumen.newBuilder()
+								.setOtroUsuario("ana")
+								.setUltimoMensaje(MensajeEntregado.newBuilder()
+										.setId("1")
+										.setRemitente(request.getUsuario())
+										.setDestinatario("ana")
+										.setContenido("Hola!")
+										.setEnviadoEn("2026-09-18T20:53:47.441193Z")
+										.build())
+								.build())
+						.setNextCursor("cursor-siguiente")
+						.setHasMore(true)
+						.build());
+				responseObserver.onCompleted();
+			}
+		});
+
+		CursorPage<com.arquetipo.demo.conversacion.web.dto.ChatResumen> pagina =
+				client.listaChats("mateo", "", 20);
+
+		assertThat(pagina.content()).hasSize(1);
+		assertThat(pagina.content().get(0).otroUsuario()).isEqualTo("ana");
+		assertThat(pagina.content().get(0).ultimoMensaje().remitente()).isEqualTo("mateo");
+		assertThat(pagina.nextCursor()).isEqualTo("cursor-siguiente");
+		assertThat(pagina.hasMore()).isTrue();
+	}
+
+	@Test
+	void listaChats_cursorInvalido_lanzaValidationException() throws IOException {
+		ConversacionGrpcClient client = clientePara(new ConversacionGrpcServiceGrpc.ConversacionGrpcServiceImplBase() {
+			@Override
+			public void listaChats(ListaChatsRequest request, StreamObserver<ListaChatsResponse> responseObserver) {
+				responseObserver.onError(Status.INVALID_ARGUMENT
+						.withDescription("El cursor de paginacion no es valido")
+						.asRuntimeException());
+			}
+		});
+
+		assertThatThrownBy(() -> client.listaChats("mateo", "cursor-invalido", 20))
+				.isInstanceOf(ValidationException.class)
+				.hasMessage("El cursor de paginacion no es valido");
+	}
+
+	@Test
+	void listaChats_serviceConversacionCaido_lanzaServiceUnavailableException() throws IOException {
+		ConversacionGrpcClient client = clientePara(new ConversacionGrpcServiceGrpc.ConversacionGrpcServiceImplBase() {
+			@Override
+			public void listaChats(ListaChatsRequest request, StreamObserver<ListaChatsResponse> responseObserver) {
+				responseObserver.onError(Status.UNAVAILABLE.asRuntimeException());
+			}
+		});
+
+		assertThatThrownBy(() -> client.listaChats("mateo", "", 20))
+				.isInstanceOf(ServiceUnavailableException.class);
 	}
 }

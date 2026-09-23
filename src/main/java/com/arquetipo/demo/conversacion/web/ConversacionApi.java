@@ -1,5 +1,7 @@
 package com.arquetipo.demo.conversacion.web;
 
+import com.arquetipo.demo.conversacion.web.dto.ChatResumen;
+import com.arquetipo.demo.conversacion.web.dto.CursorPage;
 import com.arquetipo.demo.conversacion.web.dto.MensajeResponse;
 import com.arquetipo.demo.conversacion.web.dto.PageResponse;
 import io.swagger.v3.oas.annotations.Operation;
@@ -9,6 +11,7 @@ import io.swagger.v3.oas.annotations.media.ExampleObject;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.http.MediaType;
 import org.springframework.http.ProblemDetail;
@@ -20,7 +23,7 @@ import org.springframework.http.ProblemDetail;
  * ({@code /ws/chat/{usuario}}, ver {@link ChatWebSocketConfig}), que no forma parte de
  * OpenAPI/Swagger.
  */
-@Tag(name = "Conversaciones", description = "Historial de mensajes de una conversacion 1 a 1, enrutado a chat-conversacion")
+@Tag(name = "Conversaciones", description = "Historial de mensajes y lista de chats de un usuario, enrutados a chat-conversacion")
 public interface ConversacionApi {
 
 	@Operation(summary = "Historial paginado de una conversacion entre dos usuarios",
@@ -69,4 +72,77 @@ public interface ConversacionApi {
 			@Parameter(description = "Pagina, 0-indexada") int page,
 			@Parameter(description = "Tamaño de pagina (maximo 100, aplicado por chat-conversacion)") int size,
 			@Parameter(description = "Formato 'campo,direccion', ej. 'enviadoEn,desc'") String sort);
+
+	@Operation(summary = "Lista de chats de un usuario, con el ultimo mensaje de cada uno",
+			description = """
+					Requiere `Authorization: Bearer <idToken>` con el token de ID de Firebase de
+					quien pregunta — mismo mecanismo que `GET /api/v1/usuarios/{uid}`: el gateway
+					verifica el token él mismo, resuelve el `username` del uid autenticado (contra
+					`chat-registro`) y comprueba que coincide con `usuario`; un token válido de otro
+					usuario no autoriza a leer esta lista.
+
+					Un resumen por cada persona con la que `usuario` tiene al menos un mensaje (en
+					cualquiera de los dos sentidos), con el ultimo mensaje de esa conversacion,
+					ordenados por fecha de ese ultimo mensaje (mas reciente primero). Paginado por
+					**cursor**, no por pagina/offset (pensado para scroll infinito): manda el
+					`nextCursor` de la respuesta anterior tal cual, sin modificarlo, para pedir la
+					siguiente pagina. Si `usuario` no tiene ningun mensaje con nadie, responde `200`
+					con `content: []`, nunca `404`.
+					""",
+			security = @SecurityRequirement(name = "bearerAuth"))
+	@ApiResponses({
+			@ApiResponse(
+					responseCode = "200",
+					description = "Pagina de chats (puede estar vacia)",
+					content = @Content(
+							mediaType = MediaType.APPLICATION_JSON_VALUE,
+							schema = @Schema(implementation = CursorPage.class),
+							examples = @ExampleObject(value = """
+									{
+									  "content": [
+									    {
+									      "otroUsuario": "ana",
+									      "ultimoMensaje": {
+									        "id": "66f1c2a8b4c9a12345678901",
+									        "remitente": "mateo",
+									        "destinatario": "ana",
+									        "contenido": "Hola!",
+									        "enviadoEn": "2026-09-15T20:53:47.441193Z"
+									      }
+									    }
+									  ],
+									  "nextCursor": "MjAyNi0wOS0xNVQyMDo1Mzo0Ny40NDExOTNafDY2ZjFjMmE4YjRjOWExMjM0NTY3ODkwMQ",
+									  "hasMore": false
+									}
+									"""))),
+			@ApiResponse(
+					responseCode = "400",
+					description = "El `cursor` no viene de un `nextCursor` real de chat-conversacion.",
+					content = @Content(
+							mediaType = MediaType.APPLICATION_PROBLEM_JSON_VALUE,
+							schema = @Schema(implementation = ProblemDetail.class))),
+			@ApiResponse(
+					responseCode = "401",
+					description = "Falta la cabecera Authorization, o el idToken es inválido/expirado",
+					content = @Content(
+							mediaType = MediaType.APPLICATION_PROBLEM_JSON_VALUE,
+							schema = @Schema(implementation = ProblemDetail.class))),
+			@ApiResponse(
+					responseCode = "403",
+					description = "El idToken es válido pero pertenece a un usuario distinto al pedido",
+					content = @Content(
+							mediaType = MediaType.APPLICATION_PROBLEM_JSON_VALUE,
+							schema = @Schema(implementation = ProblemDetail.class))),
+			@ApiResponse(
+					responseCode = "503",
+					description = "chat-conversacion o chat-registro no estan disponibles en este momento.",
+					content = @Content(
+							mediaType = MediaType.APPLICATION_PROBLEM_JSON_VALUE,
+							schema = @Schema(implementation = ProblemDetail.class)))
+	})
+	CursorPage<ChatResumen> listaChats(
+			@Parameter(description = "Usuario cuya lista de chats se pide", example = "mateo") String usuario,
+			String authorization,
+			@Parameter(description = "El nextCursor de una pagina anterior. Vacio = primera pagina.") String cursor,
+			@Parameter(description = "Tamaño de pagina (maximo 100, aplicado por chat-conversacion)") int size);
 }
