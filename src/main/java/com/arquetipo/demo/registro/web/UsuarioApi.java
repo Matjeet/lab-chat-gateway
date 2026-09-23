@@ -1,5 +1,6 @@
 package com.arquetipo.demo.registro.web;
 
+import com.arquetipo.demo.registro.web.dto.ExisteUsernameResponse;
 import com.arquetipo.demo.registro.web.dto.UsuarioResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -16,12 +17,14 @@ import org.springframework.http.MediaType;
 import org.springframework.http.ProblemDetail;
 
 /**
- * Contrato OpenAPI de la consulta de datos básicos de un usuario, tal como lo expone el
- * gateway al cliente. Mismo contrato que documenta {@code chat-registro} en su
- * {@code docs/contrato-grpc-registro.md} §6: es el único endpoint del gateway que exige
- * autenticación (el resto de {@code chat-registro} — el alta — no la necesita).
+ * Contrato OpenAPI de las consultas sobre usuarios ya registrados, tal como el gateway las
+ * expone al cliente. Mismo contrato que documenta {@code chat-registro} en su
+ * {@code docs/contrato-grpc-registro.md} §6: ambos endpoints exigen autenticación (a
+ * diferencia del alta, {@code POST /api/v1/registro}, que no la necesita), pero
+ * {@link #existeUsername} no exige que el recurso pedido pertenezca a quien pregunta — ver
+ * {@link UsuarioController}.
  */
-@Tag(name = "Usuarios", description = "Datos básicos de un usuario ya registrado, enrutado a chat-registro")
+@Tag(name = "Usuarios", description = "Consultas sobre usuarios ya registrados, enrutadas a chat-registro")
 @SecurityScheme(name = "bearerAuth", type = SecuritySchemeType.HTTP, scheme = "bearer", bearerFormat = "JWT")
 public interface UsuarioApi {
 
@@ -70,5 +73,50 @@ public interface UsuarioApi {
 	UsuarioResponse obtenerUsuario(
 			@Parameter(description = "UID de Firebase del usuario a consultar", example = "0lSUQS1RdYauzu3ifx6izoyzkvt2")
 			String uid,
+			String authorization);
+
+	@Operation(
+			summary = "Comprobar si un username ya esta en uso",
+			description = """
+					Requiere `Authorization: Bearer <idToken>` de cualquier usuario autenticado —
+					a diferencia de `GET /api/v1/usuarios/{uid}`, aquí **no** hace falta que el
+					`username` consultado sea el propio: es una consulta de disponibilidad (p. ej.
+					para saber si se puede iniciar un chat con ese usuario), no un dato protegido.
+					No distingue mayúsculas de minúsculas.
+					""",
+			security = @SecurityRequirement(name = "bearerAuth"))
+	@ApiResponses({
+			@ApiResponse(
+					responseCode = "200",
+					description = "Resultado de la comprobación",
+					content = @Content(
+							mediaType = MediaType.APPLICATION_JSON_VALUE,
+							schema = @Schema(implementation = ExisteUsernameResponse.class),
+							examples = @ExampleObject(value = """
+									{
+									  "existe": true
+									}
+									"""))),
+			@ApiResponse(
+					responseCode = "400",
+					description = "El parámetro username falta o está vacío",
+					content = @Content(
+							mediaType = MediaType.APPLICATION_PROBLEM_JSON_VALUE,
+							schema = @Schema(implementation = ProblemDetail.class))),
+			@ApiResponse(
+					responseCode = "401",
+					description = "Falta la cabecera Authorization, o el idToken es inválido/expirado",
+					content = @Content(
+							mediaType = MediaType.APPLICATION_PROBLEM_JSON_VALUE,
+							schema = @Schema(implementation = ProblemDetail.class))),
+			@ApiResponse(
+					responseCode = "503",
+					description = "chat-registro no esta disponible en este momento.",
+					content = @Content(
+							mediaType = MediaType.APPLICATION_PROBLEM_JSON_VALUE,
+							schema = @Schema(implementation = ProblemDetail.class)))
+	})
+	ExisteUsernameResponse existeUsername(
+			@Parameter(description = "Username a comprobar", example = "mateo") String username,
 			String authorization);
 }

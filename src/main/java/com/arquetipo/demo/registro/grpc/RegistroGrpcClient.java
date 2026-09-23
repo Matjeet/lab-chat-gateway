@@ -89,6 +89,26 @@ public class RegistroGrpcClient {
 		}
 	}
 
+	/**
+	 * Si un {@code username} ya esta en uso (sin distinguir mayusculas). Consulta publica de
+	 * disponibilidad: no requiere que el {@code username} pertenezca a quien pregunta.
+	 */
+	public boolean existeUsername(String username) {
+		log.debug(">> existeUsername(username='{}')", username);
+		ExisteUsernameRequest peticion = ExisteUsernameRequest.newBuilder()
+				.setUsername(username == null ? "" : username)
+				.build();
+
+		try {
+			ExisteUsernameResponse respuesta = stub.existeUsername(peticion);
+			log.debug("<< existeUsername() -> OK, existe={}", respuesta.getExiste());
+			return respuesta.getExiste();
+		} catch (StatusRuntimeException ex) {
+			// Sin log de fin a proposito, mismo criterio que en registrar().
+			throw traducir(ex);
+		}
+	}
+
 	private RuntimeException traducir(StatusRuntimeException ex) {
 		String detalle = ex.getStatus().getDescription();
 		return switch (ex.getStatus().getCode()) {

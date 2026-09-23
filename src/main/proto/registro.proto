@@ -12,6 +12,7 @@ option java_outer_classname = "RegistroProto";
 service RegistroGrpcService {
   rpc Registrar (RegistrarUsuarioRequest) returns (RegistrarUsuarioResponse);
   rpc BuscarUsuarioPorUid (BuscarUsuarioPorUidRequest) returns (BuscarUsuarioPorUidResponse);
+  rpc ExisteUsername (ExisteUsernameRequest) returns (ExisteUsernameResponse);
 }
 
 message RegistrarUsuarioRequest {
@@ -36,4 +37,12 @@ message BuscarUsuarioPorUidRequest {
 message BuscarUsuarioPorUidResponse {
   string username = 1;
   string email = 2;
+}
+
+message ExisteUsernameRequest {
+  string username = 1;
+}
+
+message ExisteUsernameResponse {
+  bool existe = 1;
 }
