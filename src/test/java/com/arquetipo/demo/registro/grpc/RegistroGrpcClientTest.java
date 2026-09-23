@@ -185,4 +185,57 @@ class RegistroGrpcClientTest {
 		assertThatThrownBy(() -> client.buscarUsuarioPorUid("uid-mateo"))
 				.isInstanceOf(com.arquetipo.demo.common.exception.ServiceUnavailableException.class);
 	}
+
+	@Test
+	void existeUsername_usernameEnUso_devuelveTrue() throws IOException {
+		RegistroGrpcClient client = clientePara(new RegistroGrpcServiceGrpc.RegistroGrpcServiceImplBase() {
+			@Override
+			public void existeUsername(ExisteUsernameRequest req, StreamObserver<ExisteUsernameResponse> obs) {
+				obs.onNext(ExisteUsernameResponse.newBuilder().setExiste(true).build());
+				obs.onCompleted();
+			}
+		});
+
+		assertThat(client.existeUsername("mateo")).isTrue();
+	}
+
+	@Test
+	void existeUsername_usernameLibre_devuelveFalse() throws IOException {
+		RegistroGrpcClient client = clientePara(new RegistroGrpcServiceGrpc.RegistroGrpcServiceImplBase() {
+			@Override
+			public void existeUsername(ExisteUsernameRequest req, StreamObserver<ExisteUsernameResponse> obs) {
+				obs.onNext(ExisteUsernameResponse.newBuilder().setExiste(false).build());
+				obs.onCompleted();
+			}
+		});
+
+		assertThat(client.existeUsername("libre")).isFalse();
+	}
+
+	@Test
+	void existeUsername_usernameVacio_lanzaValidationException() throws IOException {
+		RegistroGrpcClient client = clientePara(new RegistroGrpcServiceGrpc.RegistroGrpcServiceImplBase() {
+			@Override
+			public void existeUsername(ExisteUsernameRequest req, StreamObserver<ExisteUsernameResponse> obs) {
+				obs.onError(Status.INVALID_ARGUMENT.withDescription("username es obligatorio").asRuntimeException());
+			}
+		});
+
+		assertThatThrownBy(() -> client.existeUsername(""))
+				.isInstanceOf(ValidationException.class)
+				.hasMessage("username es obligatorio");
+	}
+
+	@Test
+	void existeUsername_serviceCaido_lanzaServiceUnavailableException() throws IOException {
+		RegistroGrpcClient client = clientePara(new RegistroGrpcServiceGrpc.RegistroGrpcServiceImplBase() {
+			@Override
+			public void existeUsername(ExisteUsernameRequest req, StreamObserver<ExisteUsernameResponse> obs) {
+				obs.onError(Status.UNAVAILABLE.asRuntimeException());
+			}
+		});
+
+		assertThatThrownBy(() -> client.existeUsername("mateo"))
+				.isInstanceOf(com.arquetipo.demo.common.exception.ServiceUnavailableException.class);
+	}
 }

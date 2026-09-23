@@ -1,8 +1,9 @@
 # Contratos de API — chat-gateway
 
 Referencia de **todo** lo que expone **chat-gateway** al cliente (frontend web, app móvil):
-registro de usuarios, chat en tiempo real (WebSocket + historial + lista de chats) y consulta
-de datos de usuario. Pensada para consumirse sin leer el código.
+registro de usuarios, chat en tiempo real (WebSocket + historial + lista de chats) y consultas
+sobre usuarios (datos propios, disponibilidad de un username). Pensada para consumirse sin
+leer el código.
 
 > **Quién atiende cada petición.** Como cliente, hablas siempre con el gateway — por REST o,
 > para el chat, por WebSocket — nunca directo con los microservicios. El gateway no implementa
@@ -13,6 +14,7 @@ de datos de usuario. Pensada para consumirse sin leer el código.
 > |---|---|---|---|
 > | `POST /api/v1/registro` | `chat-registro` | `RegistroGrpcService/Registrar` (unario) | `chat-registro/docs/contrato-grpc-registro.md` |
 > | `GET /api/v1/usuarios/{uid}` | `chat-registro` | `RegistroGrpcService/BuscarUsuarioPorUid` (unario) | ídem |
+> | `GET /api/v1/usuarios/existe` | `chat-registro` | `RegistroGrpcService/ExisteUsername` (unario) | ídem |
 > | `GET /ws/chat/{usuario}` | `chat-conversacion` | `ConversacionGrpcService/Chat` (bidi streaming) | `chat-conversacion/docs/contrato-grpc-conversacion.md` |
 > | `GET /api/v1/conversaciones/{usuarioA}/{usuarioB}` | `chat-conversacion` | `ConversacionGrpcService/Historial` (unario) | ídem |
 > | `GET /api/v1/conversaciones/{usuario}/chats` | `chat-conversacion` | `ConversacionGrpcService/ListaChats` (unario) | ídem |
@@ -44,7 +46,7 @@ añade las notas de integración que no caben en las anotaciones.
 | Formato de errores (REST) | `application/problem+json` (RFC 9457) — el WebSocket no lo usa, ver §3 |
 | Codificación | UTF-8 |
 | Fechas y horas | ISO-8601 en UTC, con precisión de microsegundos — ej. `2026-09-09T03:13:36.766818Z` |
-| Autenticación | Ninguna en `POST /api/v1/registro`, `GET /ws/chat/**` ni `GET /api/v1/conversaciones/{usuarioA}/{usuarioB}`. `GET /api/v1/usuarios/{uid}` (§4.2) y `GET /api/v1/conversaciones/{usuario}/chats` (§4.5) exigen `Authorization: Bearer <idToken>`. |
+| Autenticación | Ninguna en `POST /api/v1/registro`, `GET /ws/chat/**` ni `GET /api/v1/conversaciones/{usuarioA}/{usuarioB}`. Los demás exigen `Authorization: Bearer <idToken>`: `GET /api/v1/usuarios/{uid}` (§4.2), `GET /api/v1/conversaciones/{usuario}/chats` (§4.5) y `GET /api/v1/usuarios/existe` (§4.6) — este último solo exige estar autenticado, sin comparar identidad contra el recurso. |
 | CORS (endpoints REST) | Habilitado para `/api/**` en el propio gateway (no en cada microservicio). Orígenes permitidos vía `CORS_ALLOWED_ORIGINS` (lista separada por comas). |
 | Orígenes permitidos (WebSocket) | `WEBSOCKET_ALLOWED_ORIGINS` (lista separada por comas). Variable **independiente** de `CORS_ALLOWED_ORIGINS`: el *handshake* de WebSocket no pasa por CORS. |
 
@@ -87,9 +89,9 @@ Toda respuesta con código `4xx` o `5xx` de un endpoint REST tiene
 
 | `type` | HTTP | Cuándo | Endpoints donde aplica |
 |---|---|---|---|
-| `urn:problem-type:validation-error` | 400 | El cuerpo no cumple las reglas de formato (incluye `errors[]`, vacío si el error no es de un campo concreto — ver `cursor` en `GET /api/v1/conversaciones/{usuario}/chats`). | `POST /api/v1/registro`, `GET /api/v1/conversaciones/{usuario}/chats` |
+| `urn:problem-type:validation-error` | 400 | El cuerpo (o, en `/chats`/`/existe`, el parámetro correspondiente) no cumple las reglas de formato. Incluye `errors[]`, vacío si el error no es de un campo concreto. | `POST /api/v1/registro`, `GET /api/v1/conversaciones/{usuario}/chats` (`cursor`), `GET /api/v1/usuarios/existe` (`username`) |
 | `urn:problem-type:duplicate-resource` | 409 | Los datos entran en conflicto con un usuario existente. | `POST /api/v1/registro` |
-| `urn:problem-type:unauthorized` | 401 | Falta la cabecera `Authorization`, o el `idToken` es inválido/expirado. | `GET /api/v1/usuarios/{uid}`, `GET /api/v1/conversaciones/{usuario}/chats` |
+| `urn:problem-type:unauthorized` | 401 | Falta la cabecera `Authorization`, o el `idToken` es inválido/expirado. | `GET /api/v1/usuarios/{uid}`, `GET /api/v1/conversaciones/{usuario}/chats`, `GET /api/v1/usuarios/existe` |
 | `urn:problem-type:forbidden` | 403 | El `idToken` es válido pero de un uid (o del `username` que resuelve ese uid) distinto al pedido. | `GET /api/v1/usuarios/{uid}`, `GET /api/v1/conversaciones/{usuario}/chats` |
 | `urn:problem-type:resource-not-found` | 404 | El recurso solicitado no existe. | `GET /api/v1/usuarios/{uid}`, `GET /api/v1/conversaciones/{usuario}/chats` (sin perfil en `chat-registro` para el uid autenticado) |
 | `urn:problem-type:service-unavailable` | 503 | El microservicio destino no está disponible. **Propio del gateway**: el microservicio en solitario nunca lo devuelve. | Todos los REST |
@@ -222,8 +224,9 @@ curl -i -X POST http://localhost:8080/api/v1/registro \
 
 ### 4.2 `GET /api/v1/usuarios/{uid}` — Datos básicos de un usuario (autenticado)
 
-**El único endpoint del gateway que exige autenticación.** Devuelve `username`/`email` de la
-cuenta con ese `uid` de Firebase, solo si quien pregunta demuestra ser su dueño.
+**El primer endpoint del gateway que exigió autenticación** (ver también §4.5 y §4.6).
+Devuelve `username`/`email` de la cuenta con ese `uid` de Firebase, solo si quien pregunta
+demuestra ser su dueño.
 
 > **Quién verifica qué.** El gateway valida el `idToken` **él mismo**, con su propia
 > integración con Firebase Admin SDK (`common.auth`) — es el único punto del sistema que lo
@@ -566,6 +569,91 @@ curl -H "Authorization: Bearer <idToken>" \
 
 ---
 
+### 4.6 `GET /api/v1/usuarios/existe` — Comprobar si un username ya está en uso (autenticado)
+
+**Tercer endpoint del gateway que exige autenticación** (los otros dos son §4.2 y §4.5), pero
+el único que **no** compara la identidad autenticada contra el recurso pedido: basta con estar
+autenticado, sin importar de quién sea el `username` que se consulta — pensado para que un
+usuario compruebe si otro existe antes de iniciar un chat con él (o para validación en vivo en
+un formulario), no para leer datos propios.
+
+> **Quién verifica qué.** El gateway exige y verifica el `idToken` **él mismo**, igual que en
+> §4.2 y §4.5 — pero aquí no hay comparación de por medio: cualquier `idToken` válido basta.
+> `chat-registro` tampoco lo necesitaría (esta consulta es pública incluso por gRPC directo,
+> ver `chat-registro/docs/contrato-grpc-registro.md` §1) — la exigencia de autenticación es
+> una decisión propia del gateway, no heredada de `chat-registro`.
+
+#### Petición
+
+| | |
+|---|---|
+| Método | `GET` |
+| Path | `/api/v1/usuarios/existe` |
+| Query param | `username` (**obligatorio**) — el `username` de `chat-registro` a comprobar |
+| Headers | `Authorization: Bearer <idToken>` — el token de ID de Firebase de quien pregunta (de cualquier cuenta, no hace falta que sea la del `username` consultado) |
+
+> Convive con `GET /api/v1/usuarios/{uid}` (§4.2) sin ambigüedad de rutas: el segmento
+> `existe` es literal y Spring lo prioriza sobre el patrón con variable `{uid}` al resolver una
+> petición concreta — mismo mecanismo ya usado entre §4.4 y §4.5.
+
+> No distingue mayúsculas de minúsculas (`Mateo` y `mateo` son el mismo `username` para esta
+> comprobación), igual que la unicidad que aplica `POST /api/v1/registro` (§4.1).
+
+#### Respuesta `200 OK`
+
+```json
+{
+  "existe": true
+}
+```
+
+| Campo | Tipo | Descripción |
+|---|---|---|
+| `existe` | boolean | `true` si ya hay una cuenta con ese `username`. |
+
+Nunca `404`: un `username` libre es una respuesta válida (`existe: false`), no un error.
+
+#### Respuesta `400 Bad Request`
+
+`username` ausente o vacío:
+
+```json
+{
+  "type": "urn:problem-type:validation-error",
+  "title": "Datos invalidos",
+  "status": 400,
+  "detail": "El cuerpo de la peticion no supero la validacion",
+  "instance": "/api/v1/usuarios/existe",
+  "timestamp": "2026-09-22T20:53:47.441193Z",
+  "errors": []
+}
+```
+
+`errors` viene vacío a propósito: el error no es de un campo del cuerpo (este endpoint no
+tiene cuerpo), es del propio parámetro `username` — `detail` en ese caso trae el mensaje real
+(`chat-registro` responde `"username es obligatorio"`).
+
+#### Respuesta `401 Unauthorized`
+
+Misma causa y misma forma que §4.2: falta la cabecera `Authorization`, viene sin el prefijo
+`Bearer `, o el `idToken` es inválido/expirado/revocado. El gateway responde **sin llamar por
+gRPC** — a diferencia de §4.2/§4.5, aquí no hay un `403` posible: no existe combinación de
+`idToken` válido que este endpoint rechace por identidad.
+
+#### Respuesta `503` / `500`
+
+Mismo criterio que el resto del gateway: `503` si `chat-registro` no responde; `500` ante
+cualquier otro fallo inesperado.
+
+#### Ejemplo `curl`
+
+```bash
+curl -H "Authorization: Bearer <idToken>" \
+  "http://localhost:8080/api/v1/usuarios/existe?username=mateo"
+```
+
+---
+
 ## 5. Notas de integración para el frontend
 
 1. **Ramifica por `type`, no por `status` ni por textos.** `title`/`detail` pueden cambiar de
@@ -609,6 +697,11 @@ curl -H "Authorization: Bearer <idToken>" \
 15. **El `idToken` de `GET /api/v1/conversaciones/{usuario}/chats` se obtiene igual que en
     §4.2** (`currentUser.getIdToken()` del SDK de Firebase) — no hace falta pedirlo dos veces
     si ya lo tienes de resolver "tu usuario" con `GET /api/v1/usuarios/{uid}`.
+16. **`GET /api/v1/usuarios/existe` (§4.6) no es "para consultar tus propios datos"** — es la
+    única consulta autenticada que no compara identidad: cualquier sesión válida puede
+    preguntar por la disponibilidad de cualquier `username`. No la uses para decidir si "el
+    usuario actual" existe (eso ya lo resuelve `GET /api/v1/usuarios/{uid}`, §4.2); úsala para
+    preguntar por *otro* usuario, p. ej. antes de iniciar un chat con él.
 
 ---
 
@@ -635,6 +728,11 @@ export interface RegistroResponse {
 export interface UsuarioResponse {
   username: string;
   email: string;
+}
+
+// --- Disponibilidad de username (§4.6) ---
+export interface ExisteUsernameResponse {
+  existe: boolean;
 }
 
 // --- Chat (§4.3 WebSocket, §4.4 historial) ---
@@ -698,15 +796,19 @@ export interface FieldError {
 Dos features, cada una `Controller`/`Handler` → `Service` → `GrpcClient`, sin lógica de
 negocio propia (esa vive en el microservicio destino):
 
-- **`registro/`** (`POST /api/v1/registro`, `GET /api/v1/usuarios/{uid}`): `RegistroController`
-  valida el cuerpo y delega en `RegistroService` → `RegistroGrpcClient`, que traduce a
-  `RegistrarUsuarioRequest`/`BuscarUsuarioPorUidRequest` e invoca `chat-registro`. La
-  orquestación real del alta (creación en el proveedor de identidad, reconciliación,
-  compensación) vive en `chat-registro` — ver su `docs/contrato-grpc-registro.md`. En cambio,
-  `UsuarioController` **sí autentica él mismo**: llama a `AutenticacionExtractor` (ver
+- **`registro/`** (`POST /api/v1/registro`, `GET /api/v1/usuarios/{uid}`,
+  `GET /api/v1/usuarios/existe`): `RegistroController` valida el cuerpo y delega en
+  `RegistroService` → `RegistroGrpcClient`, que traduce a
+  `RegistrarUsuarioRequest`/`BuscarUsuarioPorUidRequest`/`ExisteUsernameRequest` e invoca
+  `chat-registro`. La orquestación real del alta (creación en el proveedor de identidad,
+  reconciliación, compensación) vive en `chat-registro` — ver su
+  `docs/contrato-grpc-registro.md`. En cambio, los dos endpoints de `UsuarioController` **sí
+  autentican ellos mismos**: ambos llaman a `AutenticacionExtractor` (ver
   `arquitectura-gateway.md`) para verificar el `idToken` con la integración propia del gateway
-  con Firebase, compara el uid autenticado contra el `{uid}` pedido, y solo entonces delega en
-  `RegistroService` — a `chat-registro` le llega el `uid` desnudo, sin ningún token.
+  con Firebase — a `chat-registro` le llega solo el dato ya autenticado, nunca el token —, pero
+  con distinto alcance: `obtenerUsuario` además compara el uid autenticado contra el `{uid}`
+  pedido (403 si no coincide) antes de delegar en `RegistroService`; `existeUsername` no
+  compara nada, solo exige que la verificación no falle.
 - **`conversacion/`** (`GET /ws/chat/{usuario}`, `GET /api/v1/conversaciones/{usuarioA}/{usuarioB}`,
   `GET /api/v1/conversaciones/{usuario}/chats`): `ChatWebSocketHandler` abre, al conectarse una
   sesión, un stream `Chat` de gRPC hacia `chat-conversacion` vía `ConversacionService.abrirChat`
@@ -742,6 +844,7 @@ cómo se añade un microservicio nuevo al gateway.
 
 | Fecha | Cambio |
 |---|---|
+| 2026-09-22 | Se añade `GET /api/v1/usuarios/existe`, enrutando por gRPC a `RegistroGrpcService/ExisteUsername` (`chat-registro`). Exige autenticación (cualquier `idToken` válido) pero, a diferencia de §4.2 y §4.5, no compara identidad contra el recurso — cualquier usuario autenticado puede preguntar por la disponibilidad de cualquier `username`. |
 | 2026-09-21 | `GET /api/v1/conversaciones/{usuario}/chats` pasa a exigir autenticación (`Authorization: Bearer <idToken>`), mismo mecanismo que §4.2: el gateway resuelve el `username` del uid autenticado contra `chat-registro` y lo compara con `{usuario}` (403 si no coincide) — antes de esto no tenía ningún control de acceso. |
 | 2026-09-20 (3) | Se añade `GET /api/v1/conversaciones/{usuario}/chats`, enrutando por gRPC a `ConversacionGrpcService/ListaChats` — primer endpoint REST del gateway sin equivalente previo en `chat-conversacion` (paginado por cursor, no por página/offset). |
 | 2026-09-20 (2) | El contrato externo de `GET /api/v1/usuarios/{uid}` no cambia (mismo `401`/`403`/`404`), pero por dentro el gateway pasa a validar el `idToken` **él mismo** (integración propia con Firebase Admin SDK) en vez de reenviarlo a `chat-registro` — es una decisión de arquitectura: el gateway es el único punto del sistema que valida tokens de identidad, para que futuros microservicios con autenticación no necesiten integrarse cada uno con Firebase. Ver `arquitectura-gateway.md`. |

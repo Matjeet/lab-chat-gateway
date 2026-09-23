@@ -47,4 +47,17 @@ public class RegistroService {
 		log.debug("<< obtenerUsuario() -> OK, username='{}'", respuesta.username());
 		return respuesta;
 	}
+
+	/**
+	 * Si un {@code username} ya esta en uso (sin distinguir mayusculas). A diferencia de
+	 * {@link #obtenerUsuario(String)}, esta consulta no esta ligada al uid autenticado: cualquier
+	 * usuario autenticado puede preguntar por cualquier {@code username} (p. ej. para saber si
+	 * puede iniciar un chat con el) — ver {@link com.arquetipo.demo.registro.web.UsuarioController}.
+	 */
+	public boolean existeUsername(String username) {
+		log.debug(">> existeUsername(username='{}')", username);
+		boolean existe = grpcClient.existeUsername(username);
+		log.debug("<< existeUsername() -> OK, existe={}", existe);
+		return existe;
+	}
 }

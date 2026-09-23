@@ -40,11 +40,16 @@ Cada microservicio al que el gateway enruta tiene su propia carpeta bajo
 ```
 registro/
 ├── web/
-│   ├── RegistroController.java   REST: valida (@Valid) y delega en el service
+│   ├── RegistroController.java   REST: valida (@Valid) y delega en el service (sin auth)
 │   ├── RegistroApi.java          contrato OpenAPI (igual que expone el propio microservicio)
+│   ├── UsuarioController.java    REST autenticado: obtenerUsuario (compara uid) y
+│   │                              existeUsername (solo exige estar autenticado)
+│   ├── UsuarioApi.java           contrato OpenAPI de ambos
 │   └── dto/
 │       ├── RegistroRequest.java  mismas anotaciones Bean Validation que el microservicio
-│       └── RegistroResponse.java
+│       ├── RegistroResponse.java
+│       ├── UsuarioResponse.java
+│       └── ExisteUsernameResponse.java
 ├── service/
 │   └── RegistroService.java      orquesta; hoy solo delega, es donde iria logica futura
 │                                  (agregar datos de mas de un microservicio, etc.)
@@ -102,6 +107,13 @@ autenticado del sistema, y fija la regla para todos los que vengan después:
 
 > **El gateway valida los tokens de identidad. Los microservicios internos no.**
 
+**Desde el 22-09-2026, todo endpoint REST nuevo del gateway se asume autenticado por
+defecto** — `Authorization: Bearer <idToken>` obligatorio, verificado con
+`AutenticacionExtractor`. Lo que varía de un endpoint a otro es **si además compara** esa
+identidad contra el recurso pedido, y contra qué la compara: no hay una única respuesta,
+decide caso por caso (ver los tres patrones más abajo: comparación directa por uid,
+comparación por `username` resuelto, o ninguna comparación).
+
 Concretamente, `chat-gateway` tiene su **propia** integración con Firebase Admin SDK (mismo
 proyecto de Firebase que usa `chat-registro` para crear cuentas, pero una dependencia
 `firebase-admin` distinta, en `common/auth/firebase/`) — es el único servicio del sistema que
@@ -151,6 +163,23 @@ traducir entre los dos. Un microservicio futuro cuyo recurso también se identif
 distinto al uid (un id propio, un slug, etc.) seguiría este mismo patrón: resolver primero
 contra quien sea dueño de esa relación, comparar después.
 
+**Cuando no hace falta ninguna comparación** (`UsuarioController.existeUsername`, sobre
+`GET /api/v1/usuarios/existe`): el endpoint necesita saber que quien pregunta es *alguien*
+autenticado, pero no que sea el dueño de *ese* recurso en concreto — comprobar si un
+`username` existe es información sobre un tercero, no sobre uno mismo (piensa "¿puedo iniciar
+un chat con él?"). Aquí basta con llamar a `AutenticacionExtractor` y descartar el resultado
+si no hace falta:
+
+```java
+autenticacion.uidAutenticado(authorization);   // 401 si falta o es invalido; el uid en si no se usa
+return service.existeUsername(username);       // cualquier usuario autenticado puede preguntar por cualquier username
+```
+
+No asumas que "autenticado" implica "compara contra algo": son dos decisiones independientes.
+Antes de implementar un endpoint nuevo, si no es evidente por el propio caso de uso, pregunta
+qué corresponde aquí — comparación directa por uid, comparación por un identificador resuelto
+(como `username`), o ninguna comparación.
+
 **Por qué así, y no dejando que cada microservicio valide su propio token:**
 
 - **Un solo lugar que puede fallar de forma insegura.** Si mañana se añade un microservicio
@@ -191,10 +220,13 @@ patrón a seguir.
    contrato JSON que el cliente ya espera. Para WebSocket: un `<Servicio>WebSocketHandler` que
    abra el stream al conectar y traduzca frames en los dos sentidos (ver
    `ChatWebSocketHandler`), más un `HandshakeInterceptor` si hace falta validar algo de la URL
-   de conexión antes de abrir el stream. Si el endpoint necesita autenticación, inyecta
-   `AutenticacionExtractor` (ver "Autenticación: el gateway es la única frontera" más arriba) —
-   **nunca** integres el microservicio nuevo (ni este controlador) directamente con Firebase u
-   otro proveedor de identidad para validar tokens.
+   de conexión antes de abrir el stream. **Todo endpoint REST nuevo se asume autenticado por
+   defecto**: inyecta `AutenticacionExtractor` (ver "Autenticación: el gateway es la única
+   frontera" más arriba) y, si no es evidente por el caso de uso, pregunta contra qué debe
+   comparar esa identidad (uid, un identificador resuelto como `username`, o ninguna
+   comparación — los tres patrones ya documentados) antes de implementarlo. **Nunca** integres
+   el microservicio nuevo (ni este controlador) directamente con Firebase u otro proveedor de
+   identidad para validar tokens: esa integración vive solo en el gateway.
 6. Mapea los códigos gRPC (`ALREADY_EXISTS`, `INVALID_ARGUMENT`, `UNAVAILABLE`, ...) a las
    excepciones de `com.arquetipo.demo.common.exception` que ya traduce `GlobalExceptionHandler`
    — reutilízalas en vez de crear un manejador nuevo por servicio, salvo que el microservicio
