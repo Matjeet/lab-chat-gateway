@@ -89,14 +89,13 @@ Contrato completo (formato de los mensajes, reglas de entrega, paginación) en
 ## Consulta de datos de usuario (vía `chat-registro`, autenticada)
 
 `GET /api/v1/usuarios/{uid}` con cabecera `Authorization: Bearer <idToken>` — **el primer
-endpoint del gateway que exigió autenticación** (el otro es `GET /api/v1/conversaciones/{usuario}/chats`,
-arriba). `{uid}` es el identificador que asigna Firebase al crear la cuenta (no el `username`).
-**El gateway valida el `idToken` él mismo**, con su propia integración con Firebase Admin SDK
-(`common/auth`, independiente de la que usa `chat-registro` para crear cuentas): sin la
-cabecera, o con un token inválido/expirado, responde `401` sin llamar por gRPC; si el token es
-válido pero de otro uid, `403` — también sin llamar. Solo si todo coincide llama a
-`RegistroGrpcService/BuscarUsuarioPorUid` en `chat-registro`, pasando el `uid` **desnudo,
-nunca el token**.
+endpoint del gateway que exigió autenticación**. `{uid}` es el identificador que asigna
+Firebase al crear la cuenta (no el `username`). **El gateway valida el `idToken` él mismo**,
+con su propia integración con Firebase Admin SDK (`common/auth`, independiente de la que usa
+`chat-registro` para crear cuentas): sin la cabecera, o con un token inválido/expirado,
+responde `401` sin llamar por gRPC; si el token es válido pero de otro uid, `403` — también
+sin llamar. Solo si todo coincide llama a `RegistroGrpcService/BuscarUsuarioPorUid` en
+`chat-registro`, pasando el `uid` **desnudo, nunca el token**.
 
 ```json
 { "username": "mateo", "email": "mateo@example.com" }
@@ -105,11 +104,29 @@ nunca el token**.
 Contrato completo (los códigos de error posibles, ejemplos, modelos TypeScript) en
 [`docs/contratos-api.md`](docs/contratos-api.md) §4.2.
 
+`GET /api/v1/usuarios/existe?username=mateo` (también autenticada) — comprueba si un
+`username` ya está en uso, enrutado a `RegistroGrpcService/ExisteUsername`. A diferencia de
+los demás endpoints autenticados, **no** compara la identidad del token contra el recurso
+pedido: basta con cualquier `idToken` válido, porque la consulta es sobre *otro* usuario (p.
+ej. antes de iniciar un chat con él), no sobre uno mismo.
+
+```json
+{ "existe": true }
+```
+
+Contrato completo en [`docs/contratos-api.md`](docs/contratos-api.md) §4.6. **Desde
+2026-09-22, todo endpoint REST nuevo del gateway se asume autenticado por defecto** — ver
+"Autenticación: el gateway es la única frontera" en
+[`docs/arquitectura-gateway.md`](docs/arquitectura-gateway.md) para los tres patrones de
+autorización ya establecidos (comparar por uid, por un identificador resuelto, o ninguna
+comparación).
+
 ## Documentación de la API
 
-- **Contratos para clientes** → [`docs/contratos-api.md`](docs/contratos-api.md) — los cinco
-  endpoints del gateway (registro, datos de usuario, WebSocket de chat, historial, lista de
-  chats): request/response, errores, notas de integración, modelos TypeScript.
+- **Contratos para clientes** → [`docs/contratos-api.md`](docs/contratos-api.md) — los seis
+  endpoints del gateway (registro, datos de usuario, disponibilidad de username, WebSocket de
+  chat, historial, lista de chats): request/response, errores, notas de integración, modelos
+  TypeScript.
 - **Arquitectura del gateway** → [`docs/arquitectura-gateway.md`](docs/arquitectura-gateway.md)
   (cómo se enruta cada petición, cómo añadir un microservicio nuevo — REST-unario o
   WebSocket-bidi).
@@ -144,14 +161,15 @@ com.arquetipo.demo
 │   ├── web/
 │   │   ├── RegistroController.java          POST /api/v1/registro (valida + delega)
 │   │   ├── RegistroApi.java                 contrato OpenAPI del registro
-│   │   ├── UsuarioController.java           GET /api/v1/usuarios/{uid} (autentica con AutenticacionExtractor + delega)
-│   │   ├── UsuarioApi.java                  contrato OpenAPI de la consulta (primer endpoint autenticado)
-│   │   └── dto/RegistroRequest.java · RegistroResponse.java · UsuarioResponse.java
+│   │   ├── UsuarioController.java           GET /api/v1/usuarios/{uid} (autentica y compara uid) y
+│   │   │                                     /existe (autentica, sin comparar), ambos con AutenticacionExtractor
+│   │   ├── UsuarioApi.java                  contrato OpenAPI de los dos
+│   │   └── dto/RegistroRequest.java · RegistroResponse.java · UsuarioResponse.java · ExisteUsernameResponse.java
 │   ├── service/RegistroService.java         orquesta; hoy solo delega en el cliente gRPC
 │   └── grpc/
 │       ├── RegistroGrpcProperties.java          host/puerto de chat-registro (application.yml)
 │       ├── RegistroGrpcClientConfig.java         ManagedChannel + stub como beans
-│       └── RegistroGrpcClient.java               DTO <-> proto (Registrar + BuscarUsuarioPorUid), errores gRPC <-> excepciones de dominio
+│       └── RegistroGrpcClient.java               DTO <-> proto (Registrar + BuscarUsuarioPorUid + ExisteUsername), errores gRPC <-> excepciones de dominio
 └── conversacion/                        enrutado hacia chat-conversacion (WebSocket bidi + REST unario)
     ├── web/
     │   ├── ChatWebSocketConfig.java          registra el handler en /ws/chat/{usuario}
@@ -217,6 +235,7 @@ microservicio y traduce la respuesta/error). El cliente REST nunca ve un mensaje
 | Historial de chat | `GET` http://localhost:8080/api/v1/conversaciones/{usuarioA}/{usuarioB} |
 | Lista de chats (autenticado) | `GET` http://localhost:8080/api/v1/conversaciones/{usuario}/chats |
 | Datos de usuario (autenticado) | `GET` http://localhost:8080/api/v1/usuarios/{uid} |
+| Existe username (autenticado) | `GET` http://localhost:8080/api/v1/usuarios/existe |
 | Swagger UI | http://localhost:8080/swagger-ui.html |
 | OpenAPI JSON | http://localhost:8080/v3/api-docs |
 | Actuator health | http://localhost:8080/actuator/health |
@@ -308,7 +327,7 @@ Todas las respuestas de error siguen RFC 9457:
 | `ResourceNotFoundException` | 404 |
 | `DuplicateResourceException` | 409 |
 | `ValidationException` / Bean Validation (`@Valid`) | 400 con lista `errors` |
-| `UnauthorizedException` (solo en `GET /api/v1/usuarios/{uid}`) | 401 |
-| `ForbiddenException` (solo en `GET /api/v1/usuarios/{uid}`) | 403 |
+| `UnauthorizedException` (endpoints autenticados: `/usuarios/{uid}`, `/usuarios/existe`, `/conversaciones/{usuario}/chats`) | 401 |
+| `ForbiddenException` (solo donde se compara identidad: `/usuarios/{uid}`, `/conversaciones/{usuario}/chats` — no en `/usuarios/existe`) | 403 |
 | `ServiceUnavailableException` | 503 |
 | cualquier otra | 500 (mensaje genérico, traza solo en logs) |
