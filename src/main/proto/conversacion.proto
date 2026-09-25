@@ -30,6 +30,10 @@ service ConversacionGrpcService {
   // (no por pagina/offset): pensado para scroll infinito en el cliente. Unario, sin streaming
   // (una respuesta = una pagina).
   rpc ListaChats (ListaChatsRequest) returns (ListaChatsResponse);
+
+  // Crea una solicitud de chat de solicitante hacia solicitado -- paso previo obligatorio
+  // para poder chatear. Unario, sin streaming.
+  rpc CrearSolicitud (CrearSolicitudRequest) returns (SolicitudResponse);
 }
 
 // Lo que manda el cliente por el stream de Chat. El remitente no viaja aqui: lo determina la
@@ -104,4 +108,21 @@ message ListaChatsResponse {
   // false: no lo mandes de vuelta en ese caso, no hay garantia de que siga siendo valido.
   string next_cursor = 2;
   bool has_more = 3;
+}
+
+message CrearSolicitudRequest {
+  // Username (chat-registro) de quien inicia la solicitud. Mismo formato que destinatario en
+  // MensajeSaliente.
+  string solicitante = 1;
+  // Username (chat-registro) de quien la recibe.
+  string solicitado = 2;
+}
+
+message SolicitudResponse {
+  string id = 1;
+  string solicitante = 2;
+  string solicitado = 3;
+  bool aceptada = 4;
+  // Instante de creacion en UTC, ISO-8601, mismo formato que enviado_en en MensajeEntregado.
+  string creada_en = 5;
 }

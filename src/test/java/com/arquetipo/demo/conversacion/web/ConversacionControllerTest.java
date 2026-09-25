@@ -7,10 +7,12 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.arquetipo.demo.common.auth.AutenticacionExtractor;
+import com.arquetipo.demo.common.exception.DuplicateResourceException;
 import com.arquetipo.demo.common.exception.ResourceNotFoundException;
 import com.arquetipo.demo.common.exception.ServiceUnavailableException;
 import com.arquetipo.demo.common.exception.UnauthorizedException;
@@ -20,6 +22,7 @@ import com.arquetipo.demo.conversacion.web.dto.ChatResumen;
 import com.arquetipo.demo.conversacion.web.dto.CursorPage;
 import com.arquetipo.demo.conversacion.web.dto.MensajeResponse;
 import com.arquetipo.demo.conversacion.web.dto.PageResponse;
+import com.arquetipo.demo.conversacion.web.dto.SolicitudChatResponse;
 import com.arquetipo.demo.registro.service.RegistroService;
 import com.arquetipo.demo.registro.web.dto.UsuarioResponse;
 import java.time.Instant;
@@ -28,6 +31,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
@@ -224,5 +228,130 @@ class ConversacionControllerTest {
 				.andExpect(status().isNotFound());
 
 		verify(service, never()).listaChats(any(), any(), anyInt());
+	}
+
+	@Test
+	void crearSolicitud_tokenDelSolicitante_devuelve201() throws Exception {
+		when(autenticacion.uidAutenticado("Bearer token-de-mateo")).thenReturn("uid-mateo");
+		when(registroService.obtenerUsuario("uid-mateo"))
+				.thenReturn(new UsuarioResponse("mateo", "mateo@example.com"));
+		when(service.crearSolicitud("mateo", "ana")).thenReturn(new SolicitudChatResponse(
+				"1", "mateo", "ana", false, Instant.parse("2026-09-23T20:53:47.441193Z")));
+
+		mockMvc.perform(post("/api/v1/conversaciones/solicitudes")
+						.header(HttpHeaders.AUTHORIZATION, "Bearer token-de-mateo")
+						.contentType(MediaType.APPLICATION_JSON)
+						.content("""
+								{"solicitante":"mateo","solicitado":"ana"}
+								"""))
+				.andExpect(status().isCreated())
+				.andExpect(jsonPath("$.id").value("1"))
+				.andExpect(jsonPath("$.solicitante").value("mateo"))
+				.andExpect(jsonPath("$.solicitado").value("ana"))
+				.andExpect(jsonPath("$.aceptada").value(false));
+	}
+
+	@Test
+	void crearSolicitud_cuerpoInvalido_devuelve400ConErroresSinLlamarANingunServicio() throws Exception {
+		when(autenticacion.uidAutenticado("Bearer token-de-mateo")).thenReturn("uid-mateo");
+		when(registroService.obtenerUsuario("uid-mateo"))
+				.thenReturn(new UsuarioResponse("mateo", "mateo@example.com"));
+
+		mockMvc.perform(post("/api/v1/conversaciones/solicitudes")
+						.header(HttpHeaders.AUTHORIZATION, "Bearer token-de-mateo")
+						.contentType(MediaType.APPLICATION_JSON)
+						.content("""
+								{"solicitante":"m","solicitado":""}
+								"""))
+				.andExpect(status().isBadRequest())
+				.andExpect(jsonPath("$.errors").isArray());
+
+		verify(service, never()).crearSolicitud(any(), any());
+	}
+
+	@Test
+	void crearSolicitud_tokenDeOtroUsuario_devuelve403SinLlamarAlServicioDeConversacion() throws Exception {
+		when(autenticacion.uidAutenticado("Bearer token-de-ana")).thenReturn("uid-ana");
+		when(registroService.obtenerUsuario("uid-ana"))
+				.thenReturn(new UsuarioResponse("ana", "ana@example.com"));
+
+		mockMvc.perform(post("/api/v1/conversaciones/solicitudes")
+						.header(HttpHeaders.AUTHORIZATION, "Bearer token-de-ana")
+						.contentType(MediaType.APPLICATION_JSON)
+						.content("""
+								{"solicitante":"mateo","solicitado":"ana"}
+								"""))
+				.andExpect(status().isForbidden())
+				.andExpect(jsonPath("$.type").value("urn:problem-type:forbidden"));
+
+		verify(service, never()).crearSolicitud(any(), any());
+	}
+
+	@Test
+	void crearSolicitud_sinCabeceraAuthorization_devuelve401SinLlamarAlServicio() throws Exception {
+		when(autenticacion.uidAutenticado(null))
+				.thenThrow(new UnauthorizedException("Falta la cabecera Authorization: Bearer <idToken>"));
+
+		mockMvc.perform(post("/api/v1/conversaciones/solicitudes")
+						.contentType(MediaType.APPLICATION_JSON)
+						.content("""
+								{"solicitante":"mateo","solicitado":"ana"}
+								"""))
+				.andExpect(status().isUnauthorized())
+				.andExpect(jsonPath("$.type").value("urn:problem-type:unauthorized"));
+
+		verify(service, never()).crearSolicitud(any(), any());
+	}
+
+	@Test
+	void crearSolicitud_usuarioInexistenteEnRegistro_devuelve404() throws Exception {
+		when(autenticacion.uidAutenticado("Bearer token-de-mateo")).thenReturn("uid-mateo");
+		when(registroService.obtenerUsuario("uid-mateo"))
+				.thenReturn(new UsuarioResponse("mateo", "mateo@example.com"));
+		when(service.crearSolicitud("mateo", "inexistente"))
+				.thenThrow(new ResourceNotFoundException("No existe el usuario solicitado 'inexistente'"));
+
+		mockMvc.perform(post("/api/v1/conversaciones/solicitudes")
+						.header(HttpHeaders.AUTHORIZATION, "Bearer token-de-mateo")
+						.contentType(MediaType.APPLICATION_JSON)
+						.content("""
+								{"solicitante":"mateo","solicitado":"inexistente"}
+								"""))
+				.andExpect(status().isNotFound());
+	}
+
+	@Test
+	void crearSolicitud_solicitudDuplicada_devuelve409() throws Exception {
+		when(autenticacion.uidAutenticado("Bearer token-de-mateo")).thenReturn("uid-mateo");
+		when(registroService.obtenerUsuario("uid-mateo"))
+				.thenReturn(new UsuarioResponse("mateo", "mateo@example.com"));
+		when(service.crearSolicitud("mateo", "ana"))
+				.thenThrow(new DuplicateResourceException("Ya existe una solicitud de chat entre 'mateo' y 'ana'"));
+
+		mockMvc.perform(post("/api/v1/conversaciones/solicitudes")
+						.header(HttpHeaders.AUTHORIZATION, "Bearer token-de-mateo")
+						.contentType(MediaType.APPLICATION_JSON)
+						.content("""
+								{"solicitante":"mateo","solicitado":"ana"}
+								"""))
+				.andExpect(status().isConflict());
+	}
+
+	@Test
+	void crearSolicitud_conversacionCaida_devuelve503() throws Exception {
+		when(autenticacion.uidAutenticado("Bearer token-de-mateo")).thenReturn("uid-mateo");
+		when(registroService.obtenerUsuario("uid-mateo"))
+				.thenReturn(new UsuarioResponse("mateo", "mateo@example.com"));
+		when(service.crearSolicitud("mateo", "ana"))
+				.thenThrow(new ServiceUnavailableException("chat-conversacion"));
+
+		mockMvc.perform(post("/api/v1/conversaciones/solicitudes")
+						.header(HttpHeaders.AUTHORIZATION, "Bearer token-de-mateo")
+						.contentType(MediaType.APPLICATION_JSON)
+						.content("""
+								{"solicitante":"mateo","solicitado":"ana"}
+								"""))
+				.andExpect(status().isServiceUnavailable())
+				.andExpect(jsonPath("$.type").value("urn:problem-type:service-unavailable"));
 	}
 }

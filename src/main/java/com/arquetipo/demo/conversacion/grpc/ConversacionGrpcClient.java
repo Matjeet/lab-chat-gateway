@@ -1,5 +1,7 @@
 package com.arquetipo.demo.conversacion.grpc;
 
+import com.arquetipo.demo.common.exception.DuplicateResourceException;
+import com.arquetipo.demo.common.exception.ResourceNotFoundException;
 import com.arquetipo.demo.common.exception.ServiceUnavailableException;
 import com.arquetipo.demo.common.exception.ValidationException;
 import com.arquetipo.demo.conversacion.web.dto.ChatResumen;
@@ -7,6 +9,7 @@ import com.arquetipo.demo.conversacion.web.dto.CursorPage;
 import com.arquetipo.demo.conversacion.web.dto.MensajeEntrante;
 import com.arquetipo.demo.conversacion.web.dto.MensajeResponse;
 import com.arquetipo.demo.conversacion.web.dto.PageResponse;
+import com.arquetipo.demo.conversacion.web.dto.SolicitudChatResponse;
 import io.grpc.Metadata;
 import io.grpc.StatusRuntimeException;
 import io.grpc.stub.MetadataUtils;
@@ -26,8 +29,8 @@ import org.springframework.stereotype.Component;
  * cabecera de metadata {@code usuario} (ver {@code contrato-grpc-conversacion.md} §3.1) y
  * devuelve un {@link StreamObserver} para que el llamador (el WebSocket) mande mensajes
  * salientes; cada {@code MensajeEntregado} que llegue se traduce y se entrega a {@code receptor}.
- * {@code Historial} y {@code ListaChats} son unarios: {@link #historial} y {@link #listaChats}
- * son llamadas bloqueantes normales.
+ * {@code Historial}, {@code ListaChats} y {@code CrearSolicitud} son unarios: {@link #historial},
+ * {@link #listaChats} y {@link #crearSolicitud} son llamadas bloqueantes normales.
  */
 @Slf4j
 @Component
@@ -154,6 +157,34 @@ public class ConversacionGrpcClient {
 		}
 	}
 
+	/**
+	 * Crea una solicitud de chat de {@code solicitante} hacia {@code solicitado}. Ambos deben
+	 * existir en {@code chat-registro} y no puede existir ya una solicitud entre ellos — las
+	 * dos validaciones las hace {@code chat-conversacion}, este cliente solo traduce el error.
+	 */
+	public SolicitudChatResponse crearSolicitud(String solicitante, String solicitado) {
+		log.debug(">> crearSolicitud(solicitante='{}', solicitado='{}')", solicitante, solicitado);
+		CrearSolicitudRequest peticion = CrearSolicitudRequest.newBuilder()
+				.setSolicitante(solicitante)
+				.setSolicitado(solicitado)
+				.build();
+
+		try {
+			SolicitudResponse respuesta = blockingStub.crearSolicitud(peticion);
+			SolicitudChatResponse resultado = new SolicitudChatResponse(
+					respuesta.getId(),
+					respuesta.getSolicitante(),
+					respuesta.getSolicitado(),
+					respuesta.getAceptada(),
+					Instant.parse(respuesta.getCreadaEn()));
+			log.debug("<< crearSolicitud() -> OK, id={}", resultado.id());
+			return resultado;
+		} catch (StatusRuntimeException ex) {
+			// Sin log de fin a proposito, mismo criterio que en historial().
+			throw traducir(ex);
+		}
+	}
+
 	private ChatResumen aChatResumen(com.arquetipo.demo.conversacion.grpc.ChatResumen resumen) {
 		return new ChatResumen(resumen.getOtroUsuario(), aMensajeResponse(resumen.getUltimoMensaje()));
 	}
@@ -170,6 +201,8 @@ public class ConversacionGrpcClient {
 	private RuntimeException traducir(StatusRuntimeException ex) {
 		return switch (ex.getStatus().getCode()) {
 			case INVALID_ARGUMENT -> new ValidationException(ex.getStatus().getDescription(), List.of());
+			case NOT_FOUND -> new ResourceNotFoundException(ex.getStatus().getDescription());
+			case ALREADY_EXISTS -> new DuplicateResourceException(ex.getStatus().getDescription());
 			case UNAVAILABLE -> {
 				log.error("No se pudo contactar con {} por gRPC", NOMBRE_SERVICIO, ex);
 				yield new ServiceUnavailableException(NOMBRE_SERVICIO);
