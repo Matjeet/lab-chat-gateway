@@ -1,9 +1,9 @@
 # Contratos de API — chat-gateway
 
 Referencia de **todo** lo que expone **chat-gateway** al cliente (frontend web, app móvil):
-registro de usuarios, chat en tiempo real (WebSocket + historial + lista de chats) y consultas
-sobre usuarios (datos propios, disponibilidad de un username). Pensada para consumirse sin
-leer el código.
+registro de usuarios, chat en tiempo real (WebSocket + historial + lista de chats + solicitud
+de chat) y consultas sobre usuarios (datos propios, disponibilidad de un username). Pensada
+para consumirse sin leer el código.
 
 > **Quién atiende cada petición.** Como cliente, hablas siempre con el gateway — por REST o,
 > para el chat, por WebSocket — nunca directo con los microservicios. El gateway no implementa
@@ -18,15 +18,17 @@ leer el código.
 > | `GET /ws/chat/{usuario}` | `chat-conversacion` | `ConversacionGrpcService/Chat` (bidi streaming) | `chat-conversacion/docs/contrato-grpc-conversacion.md` |
 > | `GET /api/v1/conversaciones/{usuarioA}/{usuarioB}` | `chat-conversacion` | `ConversacionGrpcService/Historial` (unario) | ídem |
 > | `GET /api/v1/conversaciones/{usuario}/chats` | `chat-conversacion` | `ConversacionGrpcService/ListaChats` (unario) | ídem |
+> | `POST /api/v1/conversaciones/solicitudes` | `chat-conversacion` | `ConversacionGrpcService/CrearSolicitud` (unario) | ídem |
 >
 > El JSON de `POST /api/v1/registro` es exactamente el mismo que documentaba `chat-registro`
 > cuando se llamaba directo, y el de `/ws/chat/**`/`/api/v1/conversaciones/**` el mismo que
 > documentaba `chat-conversacion` — este cambio de arquitectura no afecta a ningún cliente ya
 > integrado, solo cambia el host al que apunta `NEXT_PUBLIC_API_BASE_URL` (o equivalente):
-> ahora es el del gateway. `GET /api/v1/conversaciones/{usuario}/chats` es la excepción: no
-> tiene versión "original" en `chat-conversacion` (`ListaChats` nació como rpc gRPC sin
-> equivalente REST, ver `chat-conversacion/docs/contrato-grpc-conversacion.md` §5) — este
-> gateway es quien primero lo expone por REST.
+> ahora es el del gateway. `GET /api/v1/conversaciones/{usuario}/chats` y
+> `POST /api/v1/conversaciones/solicitudes` son la excepción: ninguno tiene versión "original"
+> en `chat-conversacion` (`ListaChats` y `CrearSolicitud` nacieron como rpc gRPC sin
+> equivalente REST, ver `chat-conversacion/docs/contrato-grpc-conversacion.md` §5 y §6) — este
+> gateway es quien primero los expone por REST.
 
 La fuente de verdad ejecutable del REST es la especificación **OpenAPI** que genera el propio
 servicio (el WebSocket no aparece ahí, Swagger no lo documenta); este documento la resume y
@@ -46,7 +48,7 @@ añade las notas de integración que no caben en las anotaciones.
 | Formato de errores (REST) | `application/problem+json` (RFC 9457) — el WebSocket no lo usa, ver §3 |
 | Codificación | UTF-8 |
 | Fechas y horas | ISO-8601 en UTC, con precisión de microsegundos — ej. `2026-09-09T03:13:36.766818Z` |
-| Autenticación | Ninguna en `POST /api/v1/registro`, `GET /ws/chat/**` ni `GET /api/v1/conversaciones/{usuarioA}/{usuarioB}`. Los demás exigen `Authorization: Bearer <idToken>`: `GET /api/v1/usuarios/{uid}` (§4.2), `GET /api/v1/conversaciones/{usuario}/chats` (§4.5) y `GET /api/v1/usuarios/existe` (§4.6) — este último solo exige estar autenticado, sin comparar identidad contra el recurso. |
+| Autenticación | Ninguna en `POST /api/v1/registro`, `GET /ws/chat/**` ni `GET /api/v1/conversaciones/{usuarioA}/{usuarioB}`. Los demás exigen `Authorization: Bearer <idToken>`: `GET /api/v1/usuarios/{uid}` (§4.2), `GET /api/v1/conversaciones/{usuario}/chats` (§4.5) y `POST /api/v1/conversaciones/solicitudes` (§4.7) comparan la identidad contra el recurso; `GET /api/v1/usuarios/existe` (§4.6) solo exige estar autenticado, sin comparar. |
 | CORS (endpoints REST) | Habilitado para `/api/**` en el propio gateway (no en cada microservicio). Orígenes permitidos vía `CORS_ALLOWED_ORIGINS` (lista separada por comas). |
 | Orígenes permitidos (WebSocket) | `WEBSOCKET_ALLOWED_ORIGINS` (lista separada por comas). Variable **independiente** de `CORS_ALLOWED_ORIGINS`: el *handshake* de WebSocket no pasa por CORS. |
 
@@ -89,11 +91,11 @@ Toda respuesta con código `4xx` o `5xx` de un endpoint REST tiene
 
 | `type` | HTTP | Cuándo | Endpoints donde aplica |
 |---|---|---|---|
-| `urn:problem-type:validation-error` | 400 | El cuerpo (o, en `/chats`/`/existe`, el parámetro correspondiente) no cumple las reglas de formato. Incluye `errors[]`, vacío si el error no es de un campo concreto. | `POST /api/v1/registro`, `GET /api/v1/conversaciones/{usuario}/chats` (`cursor`), `GET /api/v1/usuarios/existe` (`username`) |
-| `urn:problem-type:duplicate-resource` | 409 | Los datos entran en conflicto con un usuario existente. | `POST /api/v1/registro` |
-| `urn:problem-type:unauthorized` | 401 | Falta la cabecera `Authorization`, o el `idToken` es inválido/expirado. | `GET /api/v1/usuarios/{uid}`, `GET /api/v1/conversaciones/{usuario}/chats`, `GET /api/v1/usuarios/existe` |
-| `urn:problem-type:forbidden` | 403 | El `idToken` es válido pero de un uid (o del `username` que resuelve ese uid) distinto al pedido. | `GET /api/v1/usuarios/{uid}`, `GET /api/v1/conversaciones/{usuario}/chats` |
-| `urn:problem-type:resource-not-found` | 404 | El recurso solicitado no existe. | `GET /api/v1/usuarios/{uid}`, `GET /api/v1/conversaciones/{usuario}/chats` (sin perfil en `chat-registro` para el uid autenticado) |
+| `urn:problem-type:validation-error` | 400 | El cuerpo (o, en `/chats`/`/existe`, el parámetro correspondiente) no cumple las reglas de formato. Incluye `errors[]`, vacío si el error no es de un campo concreto. | `POST /api/v1/registro`, `GET /api/v1/conversaciones/{usuario}/chats` (`cursor`), `GET /api/v1/usuarios/existe` (`username`), `POST /api/v1/conversaciones/solicitudes` |
+| `urn:problem-type:duplicate-resource` | 409 | Los datos entran en conflicto con un recurso existente. | `POST /api/v1/registro`, `POST /api/v1/conversaciones/solicitudes` (ya existe una solicitud entre ambos usuarios) |
+| `urn:problem-type:unauthorized` | 401 | Falta la cabecera `Authorization`, o el `idToken` es inválido/expirado. | `GET /api/v1/usuarios/{uid}`, `GET /api/v1/conversaciones/{usuario}/chats`, `GET /api/v1/usuarios/existe`, `POST /api/v1/conversaciones/solicitudes` |
+| `urn:problem-type:forbidden` | 403 | El `idToken` es válido pero de un uid (o del `username` que resuelve ese uid) distinto al pedido. | `GET /api/v1/usuarios/{uid}`, `GET /api/v1/conversaciones/{usuario}/chats`, `POST /api/v1/conversaciones/solicitudes` |
+| `urn:problem-type:resource-not-found` | 404 | El recurso solicitado no existe. | `GET /api/v1/usuarios/{uid}`, `GET /api/v1/conversaciones/{usuario}/chats` (sin perfil en `chat-registro` para el uid autenticado), `POST /api/v1/conversaciones/solicitudes` (`solicitante`/`solicitado` no existen) |
 | `urn:problem-type:service-unavailable` | 503 | El microservicio destino no está disponible. **Propio del gateway**: el microservicio en solitario nunca lo devuelve. | Todos los REST |
 | `urn:problem-type:internal-error` | 500 | Error inesperado. `detail` siempre genérico; el detalle real queda en logs del servidor. | Todos los REST |
 
@@ -654,6 +656,119 @@ curl -H "Authorization: Bearer <idToken>" \
 
 ---
 
+### 4.7 `POST /api/v1/conversaciones/solicitudes` — Crear una solicitud de chat (autenticado)
+
+**Cuarto endpoint del gateway que exige autenticación** (los otros tres son §4.2, §4.5 y
+§4.6), y el segundo que compara identidad (como §4.2 y §4.5, a diferencia de §4.6). Paso
+previo obligatorio antes de poder chatear con alguien: enruta por una llamada unaria
+`ConversacionGrpcService/CrearSolicitud`. **No existía antes de este gateway**: nació directo
+como rpc gRPC en `chat-conversacion` (sin equivalente REST), y este es el primer lugar donde
+se expone por REST.
+
+> **Quién verifica qué.** Mismo mecanismo que §4.5: el gateway valida el `idToken` **él
+> mismo** y resuelve el `username` del uid autenticado contra `chat-registro`
+> (`RegistroService.obtenerUsuario`) para compararlo — pero aquí contra `solicitante` del
+> cuerpo, no contra un parámetro de la URL. Un token válido de otro usuario no autoriza a crear
+> la solicitud: nadie puede solicitar chatear con alguien **en nombre de** un tercero.
+
+#### Petición
+
+| | |
+|---|---|
+| Método | `POST` |
+| Path | `/api/v1/conversaciones/solicitudes` |
+| Headers | `Content-Type: application/json`, `Authorization: Bearer <idToken>` |
+
+Cuerpo:
+
+```json
+{
+  "solicitante": "mateo",
+  "solicitado": "ana"
+}
+```
+
+| Campo | Tipo | Obligatorio | Reglas |
+|---|---|---|---|
+| `solicitante` | string | sí | Username (`chat-registro`) de quien inicia la solicitud. 3–50 caracteres, solo `A–Z a–z 0–9 . _ -`. **Debe ser el usuario autenticado** — ver arriba. |
+| `solicitado` | string | sí | Username (`chat-registro`) de quien la recibe. Mismo formato. Distinto de `solicitante`. |
+
+#### Respuesta `201 Created`
+
+```json
+{
+  "id": "66f1c2a8b4c9a12345678901",
+  "solicitante": "mateo",
+  "solicitado": "ana",
+  "aceptada": false,
+  "creadaEn": "2026-09-23T20:53:47.441193Z",
+  "pendiente": true
+}
+```
+
+| Campo | Tipo | Descripción |
+|---|---|---|
+| `id` | string | Identificador generado. |
+| `solicitante` / `solicitado` | string | Tal cual se enviaron. |
+| `aceptada` | boolean | Siempre `false` — aceptar o rechazar una solicitud no está implementado todavía. |
+| `creadaEn` | string (ISO-8601) | Instante de creación en UTC. |
+| `pendiente` | boolean | Siempre `true` por ahora (nace así y no hay forma de resolverla todavía). Mientras sea `true`, bloquea una solicitud nueva entre el mismo par de usuarios — ver `409` más abajo. |
+
+#### Respuesta `400 Bad Request`
+
+`type` = `urn:problem-type:validation-error`, con `errors[]`. Dos causas:
+
+- `solicitante`/`solicitado` no cumple el formato (mismo criterio que §4.1) — lo detecta el
+  gateway, sin llamar por gRPC.
+- `solicitante` y `solicitado` son el mismo usuario (`chat-conversacion` lo detecta; `errors`
+  viene vacío en este caso, `detail` trae el mensaje real: `"No se puede crear una solicitud
+  de chat hacia uno mismo"`).
+
+#### Respuesta `401 Unauthorized` / `403 Forbidden`
+
+Misma causa y forma que §4.2/§4.5: `401` si falta la cabecera, viene sin `Bearer `, o el
+`idToken` es inválido/expirado; `403` si el `idToken` es válido pero de un usuario distinto a
+`solicitante` — en ambos casos, sin llamar por gRPC.
+
+#### Respuesta `404 Not Found`
+
+`solicitante` o `solicitado` no existen en `chat-registro` (`detail`:
+`"No existe el usuario solicitante/solicitado '<username>'"`) — nunca puede ser `solicitante`
+si coincidió con el usuario autenticado (ya se sabe que existe), pero sí puede serlo si el
+perfil de `chat-registro` se borró entre la autenticación y esta comprobación.
+
+#### Respuesta `409 Conflict`
+
+Ya existe una solicitud **pendiente** (`pendiente: true`) entre `solicitante` y `solicitado`,
+en cualquier sentido (`detail`: `"Ya existe una solicitud de chat pendiente entre '<a>' y
+'<b>'"`) — en ese caso no se crea nada nuevo. Una solicitud anterior ya resuelta
+(`pendiente: false`, aunque hoy no hay forma de llegar a ese estado) no cuenta para este
+chequeo y no bloquea una solicitud nueva.
+
+#### Respuesta `503` / `500`
+
+Mismo criterio que el resto del gateway: `503` si `chat-registro` (al resolver el `username`
+autenticado, o al validar `solicitante`/`solicitado` dentro de `chat-conversacion`) o
+`chat-conversacion` (al crear la solicitud) no responden; `500` ante cualquier otro fallo
+inesperado.
+
+> **La notificación por RabbitMQ es asunto de `chat-conversacion`, no del gateway.** Tras
+> crear la solicitud, `chat-conversacion` publica un mensaje best-effort en el exchange
+> `chat.notificaciones` — un fallo ahí no afecta esta respuesta (ver
+> `chat-conversacion/docs/contrato-grpc-conversacion.md` §6.3). El gateway no consume ni
+> reenvía esas notificaciones.
+
+#### Ejemplo `curl`
+
+```bash
+curl -i -X POST http://localhost:8080/api/v1/conversaciones/solicitudes \
+  -H "Authorization: Bearer <idToken>" \
+  -H 'Content-Type: application/json' \
+  -d '{"solicitante":"mateo","solicitado":"ana"}'
+```
+
+---
+
 ## 5. Notas de integración para el frontend
 
 1. **Ramifica por `type`, no por `status` ni por textos.** `title`/`detail` pueden cambiar de
@@ -702,6 +817,19 @@ curl -H "Authorization: Bearer <idToken>" \
     preguntar por la disponibilidad de cualquier `username`. No la uses para decidir si "el
     usuario actual" existe (eso ya lo resuelve `GET /api/v1/usuarios/{uid}`, §4.2); úsala para
     preguntar por *otro* usuario, p. ej. antes de iniciar un chat con él.
+17. **Flujo típico para iniciar un chat nuevo**: comprueba que el otro usuario existe
+    (`GET /api/v1/usuarios/existe`, §4.6) → crea la solicitud
+    (`POST /api/v1/conversaciones/solicitudes`, §4.7, con `solicitante` = tu propio `username`)
+    → recién entonces abre el WebSocket (§4.3) o carga el historial (§4.4). Saltarse el paso de
+    la solicitud no está bloqueado técnicamente por `chat-conversacion` todavía (el WebSocket y
+    el historial no la exigen), pero es el flujo pensado.
+18. **`solicitante` en `POST /api/v1/conversaciones/solicitudes` siempre debe ser tu propio
+    `username`**, nunca el de otro — un valor distinto responde `403` sin llegar a
+    `chat-conversacion`. No hay forma de crear una solicitud "en nombre de" otro usuario.
+19. **Una solicitud rechazada por `409` no significa que la conversación ya exista** — solo que
+    ya hay una solicitud (aceptada o no, no se distingue todavía) entre esos dos usuarios. No
+    hay manera de "reintentar" salvo que la solicitud original se elimine (no hay endpoint para
+    eso tampoco).
 
 ---
 
@@ -772,6 +900,21 @@ export interface CursorPage<T> {
   hasMore: boolean;
 }
 
+// --- Solicitud de chat (§4.7) ---
+export interface SolicitudChatRequest {
+  solicitante: string; // debe ser tu propio username; 3-50, /^[A-Za-z0-9._-]+$/
+  solicitado: string;  // 3-50, /^[A-Za-z0-9._-]+$/; distinto de solicitante
+}
+
+export interface SolicitudChatResponse {
+  id: string;
+  solicitante: string;
+  solicitado: string;
+  aceptada: boolean;  // siempre false por ahora
+  creadaEn: string;   // ISO-8601 UTC
+  pendiente: boolean; // siempre true por ahora; bloquea una solicitud nueva entre el mismo par
+}
+
 // --- Error RFC 9457 (cualquier 4xx/5xx de un endpoint REST) ---
 export interface ProblemDetail {
   type: string;      // "urn:problem-type:*"
@@ -810,20 +953,22 @@ negocio propia (esa vive en el microservicio destino):
   pedido (403 si no coincide) antes de delegar en `RegistroService`; `existeUsername` no
   compara nada, solo exige que la verificación no falle.
 - **`conversacion/`** (`GET /ws/chat/{usuario}`, `GET /api/v1/conversaciones/{usuarioA}/{usuarioB}`,
-  `GET /api/v1/conversaciones/{usuario}/chats`): `ChatWebSocketHandler` abre, al conectarse una
-  sesión, un stream `Chat` de gRPC hacia `chat-conversacion` vía `ConversacionService.abrirChat`
-  → `ConversacionGrpcClient` — la cabecera de metadata `usuario` la manda el gateway con el
-  mismo `{usuario}` que validó `UsuarioHandshakeInterceptor` al conectar. Cada frame de texto
-  entrante se valida y se reenvía por el stream; cada `MensajeEntregado` que llega por el
-  stream se traduce a JSON y se manda por el socket. El historial y la lista de chats siguen el
-  mismo patrón unario que el registro: `ConversacionController` → `ConversacionService` →
-  `ConversacionGrpcClient` (llamadas `Historial`/`ListaChats`) — el `cursor` de esta última
-  viaja tal cual, sin decodificarlo: solo `chat-conversacion` sabe interpretarlo.
-  `ConversacionController.listaChats` **sí autentica**, igual que `UsuarioController`: llama a
-  `AutenticacionExtractor` para verificar el `idToken` y, como el recurso lo identifica un
-  `username` y no un uid, resuelve ese `username` con `RegistroService.obtenerUsuario` (la
-  misma dependencia cruzada `conversacion` → `registro` que existe solo para esta
-  comprobación) antes de comparar y delegar en `ConversacionService`.
+  `GET /api/v1/conversaciones/{usuario}/chats`, `POST /api/v1/conversaciones/solicitudes`):
+  `ChatWebSocketHandler` abre, al conectarse una sesión, un stream `Chat` de gRPC hacia
+  `chat-conversacion` vía `ConversacionService.abrirChat` → `ConversacionGrpcClient` — la
+  cabecera de metadata `usuario` la manda el gateway con el mismo `{usuario}` que validó
+  `UsuarioHandshakeInterceptor` al conectar. Cada frame de texto entrante se valida y se
+  reenvía por el stream; cada `MensajeEntregado` que llega por el stream se traduce a JSON y se
+  manda por el socket. El historial, la lista de chats y crear una solicitud siguen el mismo
+  patrón unario que el registro: `ConversacionController` → `ConversacionService` →
+  `ConversacionGrpcClient` (llamadas `Historial`/`ListaChats`/`CrearSolicitud`) — el `cursor`
+  de `ListaChats` viaja tal cual, sin decodificarlo: solo `chat-conversacion` sabe
+  interpretarlo. `listaChats` y `crearSolicitud` **sí autentican**, igual que
+  `UsuarioController`: llaman a `AutenticacionExtractor` para verificar el `idToken` y, como el
+  recurso lo identifica un `username` y no un uid, resuelven ese `username` con
+  `RegistroService.obtenerUsuario` (la misma dependencia cruzada `conversacion` → `registro`
+  que existe solo para esta comprobación) antes de comparar — contra `usuario` en un caso,
+  contra `solicitante` del cuerpo en el otro — y delegar en `ConversacionService`.
 
 Ver también [`arquitectura-gateway.md`](arquitectura-gateway.md) para el patrón completo y
 cómo se añade un microservicio nuevo al gateway.
@@ -844,6 +989,8 @@ cómo se añade un microservicio nuevo al gateway.
 
 | Fecha | Cambio |
 |---|---|
+| 2026-09-24 (2) | `SolicitudChatResponse` suma el campo `pendiente`. Nueva regla de negocio en `chat-conversacion`: el `409` de §4.7 solo ocurre si ya existe una solicitud **pendiente** entre los dos usuarios — antes bloqueaba cualquier solicitud previa, sin distinguir su estado. |
+| 2026-09-24 (1) | Se añade `POST /api/v1/conversaciones/solicitudes`, enrutando por gRPC a `ConversacionGrpcService/CrearSolicitud` (`chat-conversacion`) — paso previo obligatorio para poder chatear con alguien. Exige autenticación y compara identidad: `solicitante` debe ser el `username` del uid autenticado (mismo mecanismo que §4.5), 403 si no coincide. |
 | 2026-09-22 | Se añade `GET /api/v1/usuarios/existe`, enrutando por gRPC a `RegistroGrpcService/ExisteUsername` (`chat-registro`). Exige autenticación (cualquier `idToken` válido) pero, a diferencia de §4.2 y §4.5, no compara identidad contra el recurso — cualquier usuario autenticado puede preguntar por la disponibilidad de cualquier `username`. |
 | 2026-09-21 | `GET /api/v1/conversaciones/{usuario}/chats` pasa a exigir autenticación (`Authorization: Bearer <idToken>`), mismo mecanismo que §4.2: el gateway resuelve el `username` del uid autenticado contra `chat-registro` y lo compara con `{usuario}` (403 si no coincide) — antes de esto no tenía ningún control de acceso. |
 | 2026-09-20 (3) | Se añade `GET /api/v1/conversaciones/{usuario}/chats`, enrutando por gRPC a `ConversacionGrpcService/ListaChats` — primer endpoint REST del gateway sin equivalente previo en `chat-conversacion` (paginado por cursor, no por página/offset). |
