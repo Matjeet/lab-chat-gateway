@@ -1,0 +1,71 @@
+syntax = "proto3";
+
+package com.arquetipo.demo.notificacion.grpc;
+
+option java_multiple_files = true;
+option java_package = "com.arquetipo.demo.notificacion.grpc";
+option java_outer_classname = "NotificacionProto";
+
+// Copia exacta del contrato publicado por chat-notificaciones en su README.md. No modificar
+// aqui: un cambio de contrato lo decide chat-notificaciones y se refleja copiando de nuevo ese
+// archivo.
+service NotificacionGrpcService {
+
+  // Notificaciones de un receptor, mas reciente primero por defecto. No valida que "receptor"
+  // exista en chat-registro (igual que Historial/ListaChats en chat-conversacion, que tampoco
+  // validan a quien preguntan): un receptor que no existe, o que no tiene notificaciones,
+  // simplemente devuelve una pagina vacia.
+  rpc ListaNotificaciones (ListaNotificacionesRequest) returns (ListaNotificacionesResponse);
+
+  // Marca una notificacion como leida o no leida. NOT_FOUND si "id" no corresponde a ninguna
+  // notificacion existente. No valida quien hace la llamada (esa responsabilidad es del
+  // gateway): cualquiera que conozca el id puede cambiar su estado, igual que el resto de rpc
+  // de este servicio no valida identidad.
+  rpc ActualizarLeida (ActualizarLeidaRequest) returns (NotificacionItem);
+}
+
+message ListaNotificacionesRequest {
+  string receptor = 1;
+  // 0-indexada. Un valor negativo se trata como 0.
+  int32 page = 2;
+  // 0 (o ausente) usa el default del servidor (20); se recorta al maximo (100).
+  int32 size = 3;
+  // Opcional, formato "campo,direccion" (ej. "createdAt,asc"). Vacio = "createdAt,desc" (mas
+  // reciente primero). Campos validos: id, remitente, receptor, tipo, contenido, leida,
+  // createdAt, updatedAt.
+  string sort = 4;
+}
+
+// Una notificacion, tal como la ve su receptor.
+message NotificacionItem {
+  int64 id = 1;
+  // Username de quien origino la notificacion. No todos los tipos tienen remitente (ver
+  // Notificacion#remitente): ausente si no aplica -- usar has_remitente(), no asumir "" como
+  // "sin remitente".
+  optional string remitente = 2;
+  string tipo = 3;
+  bool leida = 4;
+  // Instante de creacion en UTC, ISO-8601 (ej. "2026-09-25T20:53:47.441193Z").
+  string created_at = 5;
+  // Informacion adicional propia de "tipo", como texto JSON tal cual se persisto. No se
+  // interpreta, solo se propaga. Ausente (no "") cuando la notificacion no tiene meta -- usar
+  // has_meta(), no asumir "" como "sin meta".
+  optional string meta = 6;
+}
+
+message ActualizarLeidaRequest {
+  int64 id = 1;
+  // Nuevo valor de "leida" (0 = false = no leida, 1 = true = leida).
+  bool leida = 2;
+}
+
+message ListaNotificacionesResponse {
+  repeated NotificacionItem content = 1;
+  int32 page = 2;
+  int32 size = 3;
+  int64 total_elements = 4;
+  int32 total_pages = 5;
+  bool first = 6;
+  bool last = 7;
+  bool empty = 8;
+}

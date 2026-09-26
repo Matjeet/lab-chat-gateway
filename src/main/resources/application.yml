@@ -56,3 +56,6 @@ servicios:
   conversacion:
     grpc-host: ${CONVERSACION_GRPC_HOST:localhost}
     grpc-port: ${CONVERSACION_GRPC_PORT:9091}
+  notificaciones:
+    grpc-host: ${NOTIFICACIONES_GRPC_HOST:localhost}
+    grpc-port: ${NOTIFICACIONES_GRPC_PORT:9092}

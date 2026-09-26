@@ -126,16 +126,43 @@ ej. antes de iniciar un chat con él), no sobre uno mismo.
 Contrato completo en [`docs/contratos-api.md`](docs/contratos-api.md) §4.6. **Desde
 2026-09-22, todo endpoint REST nuevo del gateway se asume autenticado por defecto** — ver
 "Autenticación: el gateway es la única frontera" en
-[`docs/arquitectura-gateway.md`](docs/arquitectura-gateway.md) para los tres patrones de
-autorización ya establecidos (comparar por uid, por un identificador resuelto, o ninguna
-comparación).
+[`docs/arquitectura-gateway.md`](docs/arquitectura-gateway.md) para los patrones de
+autorización ya establecidos (comparar por uid, por un identificador resuelto, ninguna
+comparación, o uid directo sin garantía de propiedad sobre el recurso).
+
+## Notificaciones (vía `chat-notificaciones`, autenticadas)
+
+`GET /api/v1/notificaciones/{receptor}?page&size&sort` — notificaciones de `receptor`,
+paginadas por página/offset (no cursor), más reciente primero por defecto, enrutado a
+`NotificacionGrpcService/ListaNotificaciones`. Autenticación **por username resuelto**, mismo
+mecanismo que la lista de chats: el gateway resuelve el `username` del uid autenticado y lo
+compara contra `receptor` — `403` si no coincide.
+
+```json
+{ "content": [{ "id": 1, "remitente": "mateo", "tipo": "solicitud", "leida": false,
+  "createdAt": "2026-09-25T20:53:47.441193Z", "meta": "{\"aceptada\":false,\"pendiente\":true}" }],
+  "page": 0, "size": 20, "totalElements": 1, "totalPages": 1, "first": true, "last": true, "empty": false }
+```
+
+`meta` es texto JSON tal cual lo persistió `chat-notificaciones` (información adicional propia
+de `tipo`, sin interpretar) — `null` si la notificación no tiene meta.
+
+`PATCH /api/v1/notificaciones/{id}` — marca una notificación como leída o no leída, cuerpo
+`{ "uid": "...", "leida": true }`, enrutado a `NotificacionGrpcService/ActualizarLeida`.
+Autenticación **por uid directo** (mismo mecanismo que `GET /api/v1/usuarios/{uid}`): el uid
+del cuerpo debe coincidir con el autenticado. **Limitación conocida**: `chat-notificaciones`
+todavía no vincula una notificación a un uid ni a un `username`, así que esta comparación
+prueba quién eres, pero no que seas el receptor real de esa notificación — ver
+`docs/contratos-api.md` §4.9.
+
+Contrato completo en [`docs/contratos-api.md`](docs/contratos-api.md) §4.8 y §4.9.
 
 ## Documentación de la API
 
-- **Contratos para clientes** → [`docs/contratos-api.md`](docs/contratos-api.md) — los siete
+- **Contratos para clientes** → [`docs/contratos-api.md`](docs/contratos-api.md) — los nueve
   endpoints del gateway (registro, datos de usuario, disponibilidad de username, WebSocket de
-  chat, historial, lista de chats, solicitud de chat): request/response, errores, notas de
-  integración, modelos TypeScript.
+  chat, historial, lista de chats, solicitud de chat, lista de notificaciones, marcar leída):
+  request/response, errores, notas de integración, modelos TypeScript.
 - **Arquitectura del gateway** → [`docs/arquitectura-gateway.md`](docs/arquitectura-gateway.md)
   (cómo se enruta cada petición, cómo añadir un microservicio nuevo — REST-unario o
   WebSocket-bidi).
@@ -179,25 +206,38 @@ com.arquetipo.demo
 │       ├── RegistroGrpcProperties.java          host/puerto de chat-registro (application.yml)
 │       ├── RegistroGrpcClientConfig.java         ManagedChannel + stub como beans
 │       └── RegistroGrpcClient.java               DTO <-> proto (Registrar + BuscarUsuarioPorUid + ExisteUsername), errores gRPC <-> excepciones de dominio
-└── conversacion/                        enrutado hacia chat-conversacion (WebSocket bidi + REST unario)
+├── conversacion/                        enrutado hacia chat-conversacion (WebSocket bidi + REST unario)
+│   ├── web/
+│   │   ├── ChatWebSocketConfig.java          registra el handler en /ws/chat/{usuario}
+│   │   ├── ChatWebSocketHandler.java         puente: frame de texto <-> stream de gRPC
+│   │   ├── UsuarioHandshakeInterceptor.java  valida el {usuario} de la URL antes de abrir el stream
+│   │   ├── ConversacionController.java       GET /api/v1/conversaciones/{usuarioA}/{usuarioB} (sin auth),
+│   │   │                                      /{usuario}/chats y POST /solicitudes (autenticados, resuelven
+│   │   │                                      el username via RegistroService)
+│   │   ├── ConversacionApi.java              contrato OpenAPI de los tres
+│   │   └── dto/MensajeEntrante.java · MensajeResponse.java · PageResponse.java · ChatResumen.java ·
+│   │       CursorPage.java · SolicitudChatRequest.java · SolicitudChatResponse.java
+│   ├── service/ConversacionService.java     orquesta; delega en el cliente gRPC
+│   └── grpc/
+│       ├── ConversacionGrpcProperties.java       host/puerto de chat-conversacion (application.yml)
+│       ├── ConversacionGrpcClientConfig.java      ManagedChannel + stub async (Chat) y bloqueante (Historial, ListaChats, CrearSolicitud)
+│       └── ConversacionGrpcClient.java            DTO <-> proto (stream y unarios), errores gRPC <-> excepciones
+└── notificacion/                        enrutado hacia chat-notificaciones (REST unario)
     ├── web/
-    │   ├── ChatWebSocketConfig.java          registra el handler en /ws/chat/{usuario}
-    │   ├── ChatWebSocketHandler.java         puente: frame de texto <-> stream de gRPC
-    │   ├── UsuarioHandshakeInterceptor.java  valida el {usuario} de la URL antes de abrir el stream
-    │   ├── ConversacionController.java       GET /api/v1/conversaciones/{usuarioA}/{usuarioB} (sin auth),
-    │   │                                      /{usuario}/chats y POST /solicitudes (autenticados, resuelven
-    │   │                                      el username via RegistroService)
-    │   ├── ConversacionApi.java              contrato OpenAPI de los tres
-    │   └── dto/MensajeEntrante.java · MensajeResponse.java · PageResponse.java · ChatResumen.java ·
-    │       CursorPage.java · SolicitudChatRequest.java · SolicitudChatResponse.java
-    ├── service/ConversacionService.java     orquesta; delega en el cliente gRPC
+    │   ├── NotificacionController.java       GET /api/v1/notificaciones/{receptor} (compara username
+    │   │                                      resuelto) y PATCH /{id} (compara uid directo, sin atar
+    │   │                                      al recurso — ver arquitectura-gateway.md)
+    │   ├── NotificacionApi.java              contrato OpenAPI de los dos
+    │   └── dto/NotificacionResponse.java · PageResponse.java (copia propia) · MarcarLeidaRequest.java
+    ├── service/NotificacionService.java     orquesta; delega en el cliente gRPC
     └── grpc/
-        ├── ConversacionGrpcProperties.java       host/puerto de chat-conversacion (application.yml)
-        ├── ConversacionGrpcClientConfig.java      ManagedChannel + stub async (Chat) y bloqueante (Historial, ListaChats, CrearSolicitud)
-        └── ConversacionGrpcClient.java            DTO <-> proto (stream y unarios), errores gRPC <-> excepciones
+        ├── NotificacionGrpcProperties.java       host/puerto de chat-notificaciones (application.yml)
+        ├── NotificacionGrpcClientConfig.java      ManagedChannel + stub bloqueante (los dos rpc son unarios)
+        └── NotificacionGrpcClient.java            DTO <-> proto, errores gRPC <-> excepciones de dominio
 
 src/main/proto/registro.proto             copia exacta del contrato gRPC de chat-registro
 src/main/proto/conversacion.proto         copia exacta del contrato gRPC de chat-conversacion
+src/main/proto/notificacion.proto         copia exacta del contrato gRPC de chat-notificaciones
 ```
 
 Flujo de una petición: `Controller` (valida) → `Service` (orquesta) → `GrpcClient` (llama al
@@ -213,10 +253,11 @@ microservicio y traduce la respuesta/error). El cliente REST nunca ve un mensaje
 > `JAVA_HOME` apunta a un JDK antiguo, ajústalo o descomenta `org.gradle.java.home` en
 > `gradle.properties`.
 >
-> Necesita a `chat-registro` (gRPC en `localhost:9090`) y a `chat-conversacion` (gRPC en
-> `localhost:9091`) corriendo para que sus endpoints completen con éxito; si alguno no está,
-> el gateway responde `503` solo en las llamadas que dependen de él. El propio arranque del
-> gateway no depende de ninguno: los canales gRPC conectan de forma perezosa.
+> Necesita a `chat-registro` (gRPC en `localhost:9090`), `chat-conversacion` (gRPC en
+> `localhost:9091`) y `chat-notificaciones` (gRPC en `localhost:9092`) corriendo para que sus
+> endpoints completen con éxito; si alguno no está, el gateway responde `503` solo en las
+> llamadas que dependen de él. El propio arranque del gateway no depende de ninguno: los
+> canales gRPC conectan de forma perezosa.
 >
 > **`GET /api/v1/usuarios/{uid}` necesita Firebase configurado** (`FIREBASE_ENABLED=true` +
 > `FIREBASE_CREDENTIALS_PATH` apuntando a una clave de cuenta de servicio real): sin eso el
@@ -233,6 +274,8 @@ microservicio y traduce la respuesta/error). El cliente REST nunca ve un mensaje
 | `REGISTRO_GRPC_PORT` | `9090` | Puerto gRPC de `chat-registro` |
 | `CONVERSACION_GRPC_HOST` | `localhost` | Host gRPC de `chat-conversacion` |
 | `CONVERSACION_GRPC_PORT` | `9091` | Puerto gRPC de `chat-conversacion` |
+| `NOTIFICACIONES_GRPC_HOST` | `localhost` | Host gRPC de `chat-notificaciones` |
+| `NOTIFICACIONES_GRPC_PORT` | `9092` | Puerto gRPC de `chat-notificaciones` |
 | `FIREBASE_ENABLED` | `true` | Si el gateway inicializa su propia integración con Firebase para validar tokens (`GET /api/v1/usuarios/{uid}`) |
 | `FIREBASE_CREDENTIALS_PATH` | *(vacío = ADC)* | Ruta a la clave de cuenta de servicio (mismo proyecto de Firebase que `chat-registro`, pero **no** el mismo fichero necesariamente — cualquier clave del mismo proyecto sirve para verificar) |
 | `CORS_ALLOWED_ORIGINS` | `http://localhost:3000` | Orígenes permitidos para `/api/**` |
@@ -248,6 +291,8 @@ microservicio y traduce la respuesta/error). El cliente REST nunca ve un mensaje
 | Crear solicitud de chat (autenticado) | `POST` http://localhost:8080/api/v1/conversaciones/solicitudes |
 | Datos de usuario (autenticado) | `GET` http://localhost:8080/api/v1/usuarios/{uid} |
 | Existe username (autenticado) | `GET` http://localhost:8080/api/v1/usuarios/existe |
+| Lista de notificaciones (autenticado) | `GET` http://localhost:8080/api/v1/notificaciones/{receptor} |
+| Marcar notificación leída (autenticado) | `PATCH` http://localhost:8080/api/v1/notificaciones/{id} |
 | Swagger UI | http://localhost:8080/swagger-ui.html |
 | OpenAPI JSON | http://localhost:8080/v3/api-docs |
 | Actuator health | http://localhost:8080/actuator/health |
@@ -339,7 +384,7 @@ Todas las respuestas de error siguen RFC 9457:
 | `ResourceNotFoundException` | 404 |
 | `DuplicateResourceException` | 409 |
 | `ValidationException` / Bean Validation (`@Valid`) | 400 con lista `errors` |
-| `UnauthorizedException` (endpoints autenticados: `/usuarios/{uid}`, `/usuarios/existe`, `/conversaciones/{usuario}/chats`, `/conversaciones/solicitudes`) | 401 |
-| `ForbiddenException` (solo donde se compara identidad: `/usuarios/{uid}`, `/conversaciones/{usuario}/chats`, `/conversaciones/solicitudes` — no en `/usuarios/existe`) | 403 |
+| `UnauthorizedException` (endpoints autenticados: `/usuarios/{uid}`, `/usuarios/existe`, `/conversaciones/{usuario}/chats`, `/conversaciones/solicitudes`, `/notificaciones/{receptor}`, `/notificaciones/{id}`) | 401 |
+| `ForbiddenException` (solo donde se compara identidad: `/usuarios/{uid}`, `/conversaciones/{usuario}/chats`, `/conversaciones/solicitudes`, `/notificaciones/{receptor}`, `/notificaciones/{id}` — no en `/usuarios/existe`) | 403 |
 | `ServiceUnavailableException` | 503 |
 | cualquier otra | 500 (mensaje genérico, traza solo en logs) |
