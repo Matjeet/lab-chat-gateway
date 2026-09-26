@@ -90,6 +90,28 @@ conversacion/
                                             tal cual, opaco)
 ```
 
+Segundo caso REST-unario (`notificacion/`), misma forma que `registro/` — dos endpoints
+autenticados con mecanismos de comparación distintos, ver más abajo:
+
+```
+notificacion/
+├── web/
+│   ├── NotificacionController.java   listaNotificaciones (compara username resuelto) y
+│   │                                  actualizarLeida (compara uid directo, sin atar al recurso)
+│   ├── NotificacionApi.java          contrato OpenAPI de ambos
+│   └── dto/
+│       ├── NotificacionResponse.java
+│       ├── PageResponse.java         copia propia, mismo contrato que en registro/conversacion
+│       └── MarcarLeidaRequest.java   uid (solo para comparar) + leida
+├── service/
+│   └── NotificacionService.java      orquesta; hoy solo delega
+└── grpc/
+    ├── NotificacionGrpcProperties.java
+    ├── NotificacionGrpcClientConfig.java  un solo stub bloqueante (los dos rpc son unarios)
+    └── NotificacionGrpcClient.java        traduce DTO REST <-> mensaje proto, y errores gRPC
+                                            <-> excepciones de dominio
+```
+
 `ChatWebSocketHandler` abre, en `afterConnectionEstablished`, un stream gRPC por sesión de
 WebSocket (identificado con la cabecera de metadata `usuario`, igual que exige el
 microservicio) y lo mantiene mientras la sesión siga abierta: cada frame de texto entrante se
@@ -114,8 +136,8 @@ autenticado del sistema, y fija la regla para todos los que vengan después:
 defecto** — `Authorization: Bearer <idToken>` obligatorio, verificado con
 `AutenticacionExtractor`. Lo que varía de un endpoint a otro es **si además compara** esa
 identidad contra el recurso pedido, y contra qué la compara: no hay una única respuesta,
-decide caso por caso (ver los tres patrones más abajo: comparación directa por uid,
-comparación por `username` resuelto, o ninguna comparación).
+decide caso por caso (ver los patrones más abajo: comparación directa por uid, comparación por
+`username` resuelto, ninguna comparación, o uid directo sin atar al recurso concreto).
 
 Concretamente, `chat-gateway` tiene su **propia** integración con Firebase Admin SDK (mismo
 proyecto de Firebase que usa `chat-registro` para crear cuentas, pero una dependencia
@@ -181,10 +203,32 @@ autenticacion.uidAutenticado(authorization);   // 401 si falta o es invalido; el
 return service.existeUsername(username);       // cualquier usuario autenticado puede preguntar por cualquier username
 ```
 
-No asumas que "autenticado" implica "compara contra algo": son dos decisiones independientes.
+**Cuando compara por uid pero el recurso no está atado a ese uid**
+(`NotificacionController.actualizarLeida`, sobre `PATCH /api/v1/notificaciones/{id}`): mismo
+código que el primer patrón (comparación directa, sin resolver nada), pero con un límite
+distinto — el `uid` de la petición no prueba que quien llama sea el dueño del recurso
+concreto, porque `chat-notificaciones` no vincula todavía una notificación a un uid ni a un
+`username`:
+
+```java
+String uidAutenticado = autenticacion.uidAutenticado(authorization); // 401 si falta o es invalido
+if (!uidAutenticado.equals(request.uid())) {
+    throw new ForbiddenException("...");                              // 403 si es de otro usuario
+}
+return service.actualizarLeida(id, request.leida());                 // "id" no se valida contra el uid
+```
+
+Esto **no es un error del gateway**: es un límite real del microservicio destino, documentado
+como tal (`docs/contratos-api.md` §4.9) en vez de disimulado con una comparación que no
+significaría nada. Si `chat-notificaciones` en el futuro vincula notificación → receptor de
+forma verificable, este controlador pasaría al segundo patrón (comparación por `username`
+resuelto), como `listaNotificaciones`.
+
+No asumas que "autenticado" implica "compara contra algo", ni que "compara contra algo"
+implica "verifica que seas el dueño del recurso concreto": son decisiones independientes.
 Antes de implementar un endpoint nuevo, si no es evidente por el propio caso de uso, pregunta
-qué corresponde aquí — comparación directa por uid, comparación por un identificador resuelto
-(como `username`), o ninguna comparación.
+qué corresponde — comparación directa por uid, comparación por un identificador resuelto (como
+`username`), ninguna comparación, o uid directo sin garantía de propiedad sobre el recurso.
 
 **Por qué así, y no dejando que cada microservicio valide su propio token:**
 
@@ -229,8 +273,9 @@ patrón a seguir.
    de conexión antes de abrir el stream. **Todo endpoint REST nuevo se asume autenticado por
    defecto**: inyecta `AutenticacionExtractor` (ver "Autenticación: el gateway es la única
    frontera" más arriba) y, si no es evidente por el caso de uso, pregunta contra qué debe
-   comparar esa identidad (uid, un identificador resuelto como `username`, o ninguna
-   comparación — los tres patrones ya documentados) antes de implementarlo. **Nunca** integres
+   comparar esa identidad (uid, un identificador resuelto como `username`, ninguna comparación,
+   o uid directo sin garantía de propiedad sobre el recurso — los patrones ya documentados)
+   antes de implementarlo. **Nunca** integres
    el microservicio nuevo (ni este controlador) directamente con Firebase u otro proveedor de
    identidad para validar tokens: esa integración vive solo en el gateway.
 6. Mapea los códigos gRPC (`ALREADY_EXISTS`, `INVALID_ARGUMENT`, `UNAVAILABLE`, ...) a las
