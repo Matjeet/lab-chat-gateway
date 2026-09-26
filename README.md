@@ -89,7 +89,8 @@ paso previo obligatorio para poder chatear con alguien, enrutado a
 `solicitante` **debe ser el usuario autenticado** (mismo mecanismo que la lista de chats: el
 gateway resuelve el `username` del uid autenticado y lo compara — `403` si no coincide).
 `404` si alguno de los dos no existe en `chat-registro`, `409` si ya existe una solicitud
-entre ambos.
+**pendiente** entre ambos (una ya resuelta no bloquea una nueva). La respuesta incluye
+`pendiente: true` (nace así; no hay forma de resolverla todavía) además de `aceptada: false`.
 
 Contrato completo (formato de los mensajes, reglas de entrega, paginación) en
 [`docs/contratos-api.md`](docs/contratos-api.md) §4.3, §4.4, §4.5 y §4.7.

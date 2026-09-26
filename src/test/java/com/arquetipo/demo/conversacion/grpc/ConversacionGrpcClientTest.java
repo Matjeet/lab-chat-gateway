@@ -313,6 +313,7 @@ class ConversacionGrpcClientTest {
 						.setSolicitado(request.getSolicitado())
 						.setAceptada(false)
 						.setCreadaEn("2026-09-23T20:53:47.441193Z")
+						.setPendiente(true)
 						.build());
 				responseObserver.onCompleted();
 			}
@@ -325,6 +326,7 @@ class ConversacionGrpcClientTest {
 		assertThat(respuesta.solicitado()).isEqualTo("ana");
 		assertThat(respuesta.aceptada()).isFalse();
 		assertThat(respuesta.creadaEn()).isEqualTo(Instant.parse("2026-09-23T20:53:47.441193Z"));
+		assertThat(respuesta.pendiente()).isTrue();
 	}
 
 	@Test
@@ -364,7 +366,7 @@ class ConversacionGrpcClientTest {
 			@Override
 			public void crearSolicitud(CrearSolicitudRequest request, StreamObserver<SolicitudResponse> responseObserver) {
 				responseObserver.onError(Status.ALREADY_EXISTS
-						.withDescription("Ya existe una solicitud de chat entre 'mateo' y 'ana'")
+						.withDescription("Ya existe una solicitud de chat pendiente entre 'mateo' y 'ana'")
 						.asRuntimeException());
 			}
 		});

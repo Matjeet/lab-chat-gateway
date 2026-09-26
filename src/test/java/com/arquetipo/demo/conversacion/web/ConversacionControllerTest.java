@@ -236,7 +236,7 @@ class ConversacionControllerTest {
 		when(registroService.obtenerUsuario("uid-mateo"))
 				.thenReturn(new UsuarioResponse("mateo", "mateo@example.com"));
 		when(service.crearSolicitud("mateo", "ana")).thenReturn(new SolicitudChatResponse(
-				"1", "mateo", "ana", false, Instant.parse("2026-09-23T20:53:47.441193Z")));
+				"1", "mateo", "ana", false, Instant.parse("2026-09-23T20:53:47.441193Z"), true));
 
 		mockMvc.perform(post("/api/v1/conversaciones/solicitudes")
 						.header(HttpHeaders.AUTHORIZATION, "Bearer token-de-mateo")
@@ -248,7 +248,8 @@ class ConversacionControllerTest {
 				.andExpect(jsonPath("$.id").value("1"))
 				.andExpect(jsonPath("$.solicitante").value("mateo"))
 				.andExpect(jsonPath("$.solicitado").value("ana"))
-				.andExpect(jsonPath("$.aceptada").value(false));
+				.andExpect(jsonPath("$.aceptada").value(false))
+				.andExpect(jsonPath("$.pendiente").value(true));
 	}
 
 	@Test
@@ -326,7 +327,7 @@ class ConversacionControllerTest {
 		when(registroService.obtenerUsuario("uid-mateo"))
 				.thenReturn(new UsuarioResponse("mateo", "mateo@example.com"));
 		when(service.crearSolicitud("mateo", "ana"))
-				.thenThrow(new DuplicateResourceException("Ya existe una solicitud de chat entre 'mateo' y 'ana'"));
+				.thenThrow(new DuplicateResourceException("Ya existe una solicitud de chat pendiente entre 'mateo' y 'ana'"));
 
 		mockMvc.perform(post("/api/v1/conversaciones/solicitudes")
 						.header(HttpHeaders.AUTHORIZATION, "Bearer token-de-mateo")

@@ -159,8 +159,9 @@ public class ConversacionGrpcClient {
 
 	/**
 	 * Crea una solicitud de chat de {@code solicitante} hacia {@code solicitado}. Ambos deben
-	 * existir en {@code chat-registro} y no puede existir ya una solicitud entre ellos — las
-	 * dos validaciones las hace {@code chat-conversacion}, este cliente solo traduce el error.
+	 * existir en {@code chat-registro} y no puede existir ya una solicitud <b>pendiente</b>
+	 * entre ellos (una ya resuelta no bloquea una nueva) — las validaciones las hace
+	 * {@code chat-conversacion}, este cliente solo traduce el error.
 	 */
 	public SolicitudChatResponse crearSolicitud(String solicitante, String solicitado) {
 		log.debug(">> crearSolicitud(solicitante='{}', solicitado='{}')", solicitante, solicitado);
@@ -176,8 +177,9 @@ public class ConversacionGrpcClient {
 					respuesta.getSolicitante(),
 					respuesta.getSolicitado(),
 					respuesta.getAceptada(),
-					Instant.parse(respuesta.getCreadaEn()));
-			log.debug("<< crearSolicitud() -> OK, id={}", resultado.id());
+					Instant.parse(respuesta.getCreadaEn()),
+					respuesta.getPendiente());
+			log.debug("<< crearSolicitud() -> OK, id={}, pendiente={}", resultado.id(), resultado.pendiente());
 			return resultado;
 		} catch (StatusRuntimeException ex) {
 			// Sin log de fin a proposito, mismo criterio que en historial().

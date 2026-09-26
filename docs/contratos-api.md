@@ -701,7 +701,8 @@ Cuerpo:
   "solicitante": "mateo",
   "solicitado": "ana",
   "aceptada": false,
-  "creadaEn": "2026-09-23T20:53:47.441193Z"
+  "creadaEn": "2026-09-23T20:53:47.441193Z",
+  "pendiente": true
 }
 ```
 
@@ -711,6 +712,7 @@ Cuerpo:
 | `solicitante` / `solicitado` | string | Tal cual se enviaron. |
 | `aceptada` | boolean | Siempre `false` — aceptar o rechazar una solicitud no está implementado todavía. |
 | `creadaEn` | string (ISO-8601) | Instante de creación en UTC. |
+| `pendiente` | boolean | Siempre `true` por ahora (nace así y no hay forma de resolverla todavía). Mientras sea `true`, bloquea una solicitud nueva entre el mismo par de usuarios — ver `409` más abajo. |
 
 #### Respuesta `400 Bad Request`
 
@@ -737,8 +739,11 @@ perfil de `chat-registro` se borró entre la autenticación y esta comprobación
 
 #### Respuesta `409 Conflict`
 
-Ya existe una solicitud entre `solicitante` y `solicitado`, en cualquier sentido (`detail`:
-`"Ya existe una solicitud de chat entre '<a>' y '<b>'"`).
+Ya existe una solicitud **pendiente** (`pendiente: true`) entre `solicitante` y `solicitado`,
+en cualquier sentido (`detail`: `"Ya existe una solicitud de chat pendiente entre '<a>' y
+'<b>'"`) — en ese caso no se crea nada nuevo. Una solicitud anterior ya resuelta
+(`pendiente: false`, aunque hoy no hay forma de llegar a ese estado) no cuenta para este
+chequeo y no bloquea una solicitud nueva.
 
 #### Respuesta `503` / `500`
 
@@ -905,8 +910,9 @@ export interface SolicitudChatResponse {
   id: string;
   solicitante: string;
   solicitado: string;
-  aceptada: boolean; // siempre false por ahora
-  creadaEn: string;  // ISO-8601 UTC
+  aceptada: boolean;  // siempre false por ahora
+  creadaEn: string;   // ISO-8601 UTC
+  pendiente: boolean; // siempre true por ahora; bloquea una solicitud nueva entre el mismo par
 }
 
 // --- Error RFC 9457 (cualquier 4xx/5xx de un endpoint REST) ---
@@ -983,7 +989,8 @@ cómo se añade un microservicio nuevo al gateway.
 
 | Fecha | Cambio |
 |---|---|
-| 2026-09-24 | Se añade `POST /api/v1/conversaciones/solicitudes`, enrutando por gRPC a `ConversacionGrpcService/CrearSolicitud` (`chat-conversacion`) — paso previo obligatorio para poder chatear con alguien. Exige autenticación y compara identidad: `solicitante` debe ser el `username` del uid autenticado (mismo mecanismo que §4.5), 403 si no coincide. |
+| 2026-09-24 (2) | `SolicitudChatResponse` suma el campo `pendiente`. Nueva regla de negocio en `chat-conversacion`: el `409` de §4.7 solo ocurre si ya existe una solicitud **pendiente** entre los dos usuarios — antes bloqueaba cualquier solicitud previa, sin distinguir su estado. |
+| 2026-09-24 (1) | Se añade `POST /api/v1/conversaciones/solicitudes`, enrutando por gRPC a `ConversacionGrpcService/CrearSolicitud` (`chat-conversacion`) — paso previo obligatorio para poder chatear con alguien. Exige autenticación y compara identidad: `solicitante` debe ser el `username` del uid autenticado (mismo mecanismo que §4.5), 403 si no coincide. |
 | 2026-09-22 | Se añade `GET /api/v1/usuarios/existe`, enrutando por gRPC a `RegistroGrpcService/ExisteUsername` (`chat-registro`). Exige autenticación (cualquier `idToken` válido) pero, a diferencia de §4.2 y §4.5, no compara identidad contra el recurso — cualquier usuario autenticado puede preguntar por la disponibilidad de cualquier `username`. |
 | 2026-09-21 | `GET /api/v1/conversaciones/{usuario}/chats` pasa a exigir autenticación (`Authorization: Bearer <idToken>`), mismo mecanismo que §4.2: el gateway resuelve el `username` del uid autenticado contra `chat-registro` y lo compara con `{usuario}` (403 si no coincide) — antes de esto no tenía ningún control de acceso. |
 | 2026-09-20 (3) | Se añade `GET /api/v1/conversaciones/{usuario}/chats`, enrutando por gRPC a `ConversacionGrpcService/ListaChats` — primer endpoint REST del gateway sin equivalente previo en `chat-conversacion` (paginado por cursor, no por página/offset). |

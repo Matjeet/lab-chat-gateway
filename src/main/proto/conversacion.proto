@@ -125,4 +125,8 @@ message SolicitudResponse {
   bool aceptada = 4;
   // Instante de creacion en UTC, ISO-8601, mismo formato que enviado_en en MensajeEntregado.
   string creada_en = 5;
+  // Si la solicitud sigue pendiente de resolver (aceptar/rechazar no esta implementado
+  // todavia, asi que nace y se queda en true). Mientras haya una solicitud pendiente entre dos
+  // usuarios, CrearSolicitud no crea una segunda -- ver la documentacion del rpc.
+  bool pendiente = 6;
 }

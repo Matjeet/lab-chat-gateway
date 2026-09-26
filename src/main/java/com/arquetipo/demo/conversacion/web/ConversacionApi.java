@@ -158,9 +158,10 @@ public interface ConversacionApi {
 
 					Paso previo obligatorio para poder chatear con alguien. `solicitante` y
 					`solicitado` deben existir en `chat-registro` y ser distintos entre sí; no
-					puede existir ya una solicitud entre ambos, en cualquier sentido. La solicitud
-					nace siempre con `aceptada: false` — aceptarla o rechazarla no está
-					implementado todavía.
+					puede existir ya una solicitud **pendiente** entre ambos, en cualquier
+					sentido (una solicitud ya resuelta no bloquea una nueva). La solicitud nace
+					siempre con `aceptada: false` y `pendiente: true` — aceptarla o rechazarla no
+					está implementado todavía, así que por ahora se queda pendiente para siempre.
 					""",
 			security = @SecurityRequirement(name = "bearerAuth"))
 	@ApiResponses({
@@ -176,7 +177,8 @@ public interface ConversacionApi {
 									  "solicitante": "mateo",
 									  "solicitado": "ana",
 									  "aceptada": false,
-									  "creadaEn": "2026-09-23T20:53:47.441193Z"
+									  "creadaEn": "2026-09-23T20:53:47.441193Z",
+									  "pendiente": true
 									}
 									"""))),
 			@ApiResponse(
@@ -205,7 +207,7 @@ public interface ConversacionApi {
 							schema = @Schema(implementation = ProblemDetail.class))),
 			@ApiResponse(
 					responseCode = "409",
-					description = "Ya existe una solicitud entre solicitante y solicitado, en cualquier sentido",
+					description = "Ya existe una solicitud pendiente entre solicitante y solicitado, en cualquier sentido",
 					content = @Content(
 							mediaType = MediaType.APPLICATION_PROBLEM_JSON_VALUE,
 							schema = @Schema(implementation = ProblemDetail.class))),
