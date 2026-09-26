@@ -83,8 +83,17 @@ además resuelve el `username` del uid autenticado contra `chat-registro`
 (`RegistroService.obtenerUsuario`, la misma consulta del endpoint de abajo) para compararlo
 con `{usuario}` — un token válido de otro usuario responde `403`.
 
+`POST /api/v1/conversaciones/solicitudes` (**autenticado**) — crea una solicitud de chat,
+paso previo obligatorio para poder chatear con alguien, enrutado a
+`ConversacionGrpcService/CrearSolicitud`. Cuerpo `{ "solicitante": "mateo", "solicitado": "ana" }`;
+`solicitante` **debe ser el usuario autenticado** (mismo mecanismo que la lista de chats: el
+gateway resuelve el `username` del uid autenticado y lo compara — `403` si no coincide).
+`404` si alguno de los dos no existe en `chat-registro`, `409` si ya existe una solicitud
+**pendiente** entre ambos (una ya resuelta no bloquea una nueva). La respuesta incluye
+`pendiente: true` (nace así; no hay forma de resolverla todavía) además de `aceptada: false`.
+
 Contrato completo (formato de los mensajes, reglas de entrega, paginación) en
-[`docs/contratos-api.md`](docs/contratos-api.md) §4.3, §4.4 y §4.5.
+[`docs/contratos-api.md`](docs/contratos-api.md) §4.3, §4.4, §4.5 y §4.7.
 
 ## Consulta de datos de usuario (vía `chat-registro`, autenticada)
 
@@ -123,10 +132,10 @@ comparación).
 
 ## Documentación de la API
 
-- **Contratos para clientes** → [`docs/contratos-api.md`](docs/contratos-api.md) — los seis
+- **Contratos para clientes** → [`docs/contratos-api.md`](docs/contratos-api.md) — los siete
   endpoints del gateway (registro, datos de usuario, disponibilidad de username, WebSocket de
-  chat, historial, lista de chats): request/response, errores, notas de integración, modelos
-  TypeScript.
+  chat, historial, lista de chats, solicitud de chat): request/response, errores, notas de
+  integración, modelos TypeScript.
 - **Arquitectura del gateway** → [`docs/arquitectura-gateway.md`](docs/arquitectura-gateway.md)
   (cómo se enruta cada petición, cómo añadir un microservicio nuevo — REST-unario o
   WebSocket-bidi).
@@ -175,14 +184,16 @@ com.arquetipo.demo
     │   ├── ChatWebSocketConfig.java          registra el handler en /ws/chat/{usuario}
     │   ├── ChatWebSocketHandler.java         puente: frame de texto <-> stream de gRPC
     │   ├── UsuarioHandshakeInterceptor.java  valida el {usuario} de la URL antes de abrir el stream
-    │   ├── ConversacionController.java       GET /api/v1/conversaciones/{usuarioA}/{usuarioB} (sin auth) y
-    │   │                                      /{usuario}/chats (autenticado, resuelve el username via RegistroService)
-    │   ├── ConversacionApi.java              contrato OpenAPI del historial y de la lista de chats
-    │   └── dto/MensajeEntrante.java · MensajeResponse.java · PageResponse.java · ChatResumen.java · CursorPage.java
+    │   ├── ConversacionController.java       GET /api/v1/conversaciones/{usuarioA}/{usuarioB} (sin auth),
+    │   │                                      /{usuario}/chats y POST /solicitudes (autenticados, resuelven
+    │   │                                      el username via RegistroService)
+    │   ├── ConversacionApi.java              contrato OpenAPI de los tres
+    │   └── dto/MensajeEntrante.java · MensajeResponse.java · PageResponse.java · ChatResumen.java ·
+    │       CursorPage.java · SolicitudChatRequest.java · SolicitudChatResponse.java
     ├── service/ConversacionService.java     orquesta; delega en el cliente gRPC
     └── grpc/
         ├── ConversacionGrpcProperties.java       host/puerto de chat-conversacion (application.yml)
-        ├── ConversacionGrpcClientConfig.java      ManagedChannel + stub async (Chat) y bloqueante (Historial, ListaChats)
+        ├── ConversacionGrpcClientConfig.java      ManagedChannel + stub async (Chat) y bloqueante (Historial, ListaChats, CrearSolicitud)
         └── ConversacionGrpcClient.java            DTO <-> proto (stream y unarios), errores gRPC <-> excepciones
 
 src/main/proto/registro.proto             copia exacta del contrato gRPC de chat-registro
@@ -234,6 +245,7 @@ microservicio y traduce la respuesta/error). El cliente REST nunca ve un mensaje
 | Chat (WebSocket) | ws://localhost:8080/ws/chat/{usuario} |
 | Historial de chat | `GET` http://localhost:8080/api/v1/conversaciones/{usuarioA}/{usuarioB} |
 | Lista de chats (autenticado) | `GET` http://localhost:8080/api/v1/conversaciones/{usuario}/chats |
+| Crear solicitud de chat (autenticado) | `POST` http://localhost:8080/api/v1/conversaciones/solicitudes |
 | Datos de usuario (autenticado) | `GET` http://localhost:8080/api/v1/usuarios/{uid} |
 | Existe username (autenticado) | `GET` http://localhost:8080/api/v1/usuarios/existe |
 | Swagger UI | http://localhost:8080/swagger-ui.html |
@@ -327,7 +339,7 @@ Todas las respuestas de error siguen RFC 9457:
 | `ResourceNotFoundException` | 404 |
 | `DuplicateResourceException` | 409 |
 | `ValidationException` / Bean Validation (`@Valid`) | 400 con lista `errors` |
-| `UnauthorizedException` (endpoints autenticados: `/usuarios/{uid}`, `/usuarios/existe`, `/conversaciones/{usuario}/chats`) | 401 |
-| `ForbiddenException` (solo donde se compara identidad: `/usuarios/{uid}`, `/conversaciones/{usuario}/chats` — no en `/usuarios/existe`) | 403 |
+| `UnauthorizedException` (endpoints autenticados: `/usuarios/{uid}`, `/usuarios/existe`, `/conversaciones/{usuario}/chats`, `/conversaciones/solicitudes`) | 401 |
+| `ForbiddenException` (solo donde se compara identidad: `/usuarios/{uid}`, `/conversaciones/{usuario}/chats`, `/conversaciones/solicitudes` — no en `/usuarios/existe`) | 403 |
 | `ServiceUnavailableException` | 503 |
 | cualquier otra | 500 (mensaje genérico, traza solo en logs) |

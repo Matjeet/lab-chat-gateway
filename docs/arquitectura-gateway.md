@@ -69,22 +69,25 @@ conversacion/
 │   ├── ChatWebSocketConfig.java          registra el handler en /ws/chat/{usuario}
 │   ├── ChatWebSocketHandler.java         puente: frame de texto <-> stream gRPC (ver mas abajo)
 │   ├── UsuarioHandshakeInterceptor.java  valida el {usuario} de la URL antes de abrir el stream
-│   ├── ConversacionController.java       REST del historial (sin auth) y de la lista de chats
-│   │                                      (autenticado, ver "Autenticacion" mas abajo)
-│   ├── ConversacionApi.java              contrato OpenAPI de ambos
-│   └── dto/ (MensajeEntrante, MensajeResponse, PageResponse, ChatResumen, CursorPage)
+│   ├── ConversacionController.java       REST del historial (sin auth), la lista de chats y
+│   │                                      crear una solicitud (autenticados, ver
+│   │                                      "Autenticacion" mas abajo)
+│   ├── ConversacionApi.java              contrato OpenAPI de los tres
+│   └── dto/ (MensajeEntrante, MensajeResponse, PageResponse, ChatResumen, CursorPage,
+│             SolicitudChatRequest, SolicitudChatResponse)
 ├── service/
 │   └── ConversacionService.java          delega en el grpc client; un metodo por rpc (uno
-│                                          bidi, dos unarios)
+│                                          bidi, tres unarios)
 └── grpc/
     ├── ConversacionGrpcProperties.java
     ├── ConversacionGrpcClientConfig.java  dos stubs sobre el mismo canal: uno async (bidi
     │                                      streaming, para Chat) y uno bloqueante (para
-    │                                      Historial y ListaChats)
+    │                                      Historial, ListaChats y CrearSolicitud)
     └── ConversacionGrpcClient.java        abrirChat(usuario, receptor) devuelve un
-                                            StreamObserver para mandar; historial(...) y
-                                            listaChats(...) son llamadas bloqueantes normales
-                                            (el cursor de esta ultima viaja tal cual, opaco)
+                                            StreamObserver para mandar; historial(...),
+                                            listaChats(...) y crearSolicitud(...) son llamadas
+                                            bloqueantes normales (el cursor de listaChats viaja
+                                            tal cual, opaco)
 ```
 
 `ChatWebSocketHandler` abre, en `afterConnectionEstablished`, un stream gRPC por sesión de
@@ -142,10 +145,13 @@ return service.obtenerUsuario(uid);                                   // a chat-
 ```
 
 **Cuando el recurso no lo identifica un uid** (`ConversacionController.listaChats`, sobre
-`GET /api/v1/conversaciones/{usuario}/chats`): el mismo patrón, con un paso intermedio. El
+`GET /api/v1/conversaciones/{usuario}/chats`, y `ConversacionController.crearSolicitud`, sobre
+`POST /api/v1/conversaciones/solicitudes`): el mismo patrón, con un paso intermedio. El
 recurso está en `username` (de `chat-registro`), no en el uid que devuelve
 `AutenticacionExtractor` — así que antes de comparar hay que resolver uno a partir del otro,
-siempre contra `chat-registro` (la única fuente de verdad de esa relación):
+siempre contra `chat-registro` (la única fuente de verdad de esa relación). No importa si lo
+que se compara viene de la URL (`usuario`, un path variable) o del cuerpo (`solicitante`, un
+campo del JSON) — el patrón es el mismo:
 
 ```java
 String uidAutenticado = autenticacion.uidAutenticado(authorization);        // 401 si falta o es invalido

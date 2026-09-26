@@ -7,14 +7,21 @@ import com.arquetipo.demo.conversacion.web.dto.ChatResumen;
 import com.arquetipo.demo.conversacion.web.dto.CursorPage;
 import com.arquetipo.demo.conversacion.web.dto.MensajeResponse;
 import com.arquetipo.demo.conversacion.web.dto.PageResponse;
+import com.arquetipo.demo.conversacion.web.dto.SolicitudChatRequest;
+import com.arquetipo.demo.conversacion.web.dto.SolicitudChatResponse;
 import com.arquetipo.demo.registro.service.RegistroService;
+import jakarta.validation.Valid;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
@@ -36,14 +43,14 @@ import org.springframework.web.bind.annotation.RestController;
  * variables) conviven sin ambiguedad: Spring prioriza el segmento literal al resolver la
  * ruta de una peticion concreta.
  *
- * <p>{@link #listaChats} es el unico endpoint autenticado de este controlador — mismo
- * mecanismo que {@code UsuarioController}: {@link AutenticacionExtractor} verifica el
- * {@code idToken} y devuelve el uid autenticado, sin que {@code chat-conversacion} vea nunca
- * el token. La diferencia es que aqui el recurso lo identifica un {@code username} de
+ * <p>{@link #listaChats} y {@link #crearSolicitud} son los endpoints autenticados de este
+ * controlador — mismo mecanismo que {@code UsuarioController}: {@link AutenticacionExtractor}
+ * verifica el {@code idToken} y devuelve el uid autenticado, sin que {@code chat-conversacion}
+ * vea nunca el token. La diferencia es que aqui el recurso lo identifica un {@code username} de
  * {@code chat-registro}, no un uid de Firebase, asi que hace falta un paso extra: resolver el
  * {@code username} del uid autenticado con {@link RegistroService#obtenerUsuario} (la misma
  * fuente de verdad que ya usa {@code UsuarioController}) antes de comparar contra
- * {@code usuario}.
+ * {@code usuario}/{@code solicitante}.
  */
 @Slf4j
 @RestController
@@ -91,6 +98,25 @@ public class ConversacionController implements ConversacionApi {
 		}
 		CursorPage<ChatResumen> respuesta = service.listaChats(usuario, cursor, size);
 		log.debug("<< listaChats() -> OK, chats={}, hasMore={}", respuesta.content().size(), respuesta.hasMore());
+		return respuesta;
+	}
+
+	@Override
+	@PostMapping("/solicitudes")
+	@ResponseStatus(HttpStatus.CREATED)
+	public SolicitudChatResponse crearSolicitud(
+			@Valid @RequestBody SolicitudChatRequest request,
+			@RequestHeader(value = HttpHeaders.AUTHORIZATION, required = false) String authorization) {
+		log.debug(">> crearSolicitud(solicitante='{}', solicitado='{}')", request.solicitante(), request.solicitado());
+		String uidAutenticado = autenticacion.uidAutenticado(authorization);
+		String usernameAutenticado = registroService.obtenerUsuario(uidAutenticado).username();
+		if (!usernameAutenticado.equals(request.solicitante())) {
+			log.warn("Acceso denegado: el usuario autenticado no coincide con el solicitante. solicitante='{}'",
+					request.solicitante());
+			throw new ForbiddenException("El token no autoriza a crear una solicitud en nombre de este usuario");
+		}
+		SolicitudChatResponse respuesta = service.crearSolicitud(request.solicitante(), request.solicitado());
+		log.debug("<< crearSolicitud() -> OK, id={}", respuesta.id());
 		return respuesta;
 	}
 }

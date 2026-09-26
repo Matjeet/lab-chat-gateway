@@ -3,12 +3,15 @@ package com.arquetipo.demo.conversacion.grpc;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import com.arquetipo.demo.common.exception.DuplicateResourceException;
+import com.arquetipo.demo.common.exception.ResourceNotFoundException;
 import com.arquetipo.demo.common.exception.ServiceUnavailableException;
 import com.arquetipo.demo.common.exception.ValidationException;
 import com.arquetipo.demo.conversacion.web.dto.CursorPage;
 import com.arquetipo.demo.conversacion.web.dto.MensajeEntrante;
 import com.arquetipo.demo.conversacion.web.dto.MensajeResponse;
 import com.arquetipo.demo.conversacion.web.dto.PageResponse;
+import com.arquetipo.demo.conversacion.web.dto.SolicitudChatResponse;
 import io.grpc.Context;
 import io.grpc.Contexts;
 import io.grpc.ManagedChannel;
@@ -296,6 +299,92 @@ class ConversacionGrpcClientTest {
 		});
 
 		assertThatThrownBy(() -> client.listaChats("mateo", "", 20))
+				.isInstanceOf(ServiceUnavailableException.class);
+	}
+
+	@Test
+	void crearSolicitud_respuestaValida_seTraduceASolicitudChatResponse() throws IOException {
+		ConversacionGrpcClient client = clientePara(new ConversacionGrpcServiceGrpc.ConversacionGrpcServiceImplBase() {
+			@Override
+			public void crearSolicitud(CrearSolicitudRequest request, StreamObserver<SolicitudResponse> responseObserver) {
+				responseObserver.onNext(SolicitudResponse.newBuilder()
+						.setId("1")
+						.setSolicitante(request.getSolicitante())
+						.setSolicitado(request.getSolicitado())
+						.setAceptada(false)
+						.setCreadaEn("2026-09-23T20:53:47.441193Z")
+						.setPendiente(true)
+						.build());
+				responseObserver.onCompleted();
+			}
+		});
+
+		SolicitudChatResponse respuesta = client.crearSolicitud("mateo", "ana");
+
+		assertThat(respuesta.id()).isEqualTo("1");
+		assertThat(respuesta.solicitante()).isEqualTo("mateo");
+		assertThat(respuesta.solicitado()).isEqualTo("ana");
+		assertThat(respuesta.aceptada()).isFalse();
+		assertThat(respuesta.creadaEn()).isEqualTo(Instant.parse("2026-09-23T20:53:47.441193Z"));
+		assertThat(respuesta.pendiente()).isTrue();
+	}
+
+	@Test
+	void crearSolicitud_haciaUnoMismo_lanzaValidationException() throws IOException {
+		ConversacionGrpcClient client = clientePara(new ConversacionGrpcServiceGrpc.ConversacionGrpcServiceImplBase() {
+			@Override
+			public void crearSolicitud(CrearSolicitudRequest request, StreamObserver<SolicitudResponse> responseObserver) {
+				responseObserver.onError(Status.INVALID_ARGUMENT
+						.withDescription("No se puede crear una solicitud de chat hacia uno mismo")
+						.asRuntimeException());
+			}
+		});
+
+		assertThatThrownBy(() -> client.crearSolicitud("mateo", "mateo"))
+				.isInstanceOf(ValidationException.class)
+				.hasMessage("No se puede crear una solicitud de chat hacia uno mismo");
+	}
+
+	@Test
+	void crearSolicitud_usuarioInexistente_lanzaResourceNotFoundException() throws IOException {
+		ConversacionGrpcClient client = clientePara(new ConversacionGrpcServiceGrpc.ConversacionGrpcServiceImplBase() {
+			@Override
+			public void crearSolicitud(CrearSolicitudRequest request, StreamObserver<SolicitudResponse> responseObserver) {
+				responseObserver.onError(Status.NOT_FOUND
+						.withDescription("No existe el usuario solicitado 'ana'")
+						.asRuntimeException());
+			}
+		});
+
+		assertThatThrownBy(() -> client.crearSolicitud("mateo", "ana"))
+				.isInstanceOf(ResourceNotFoundException.class);
+	}
+
+	@Test
+	void crearSolicitud_solicitudDuplicada_lanzaDuplicateResourceException() throws IOException {
+		ConversacionGrpcClient client = clientePara(new ConversacionGrpcServiceGrpc.ConversacionGrpcServiceImplBase() {
+			@Override
+			public void crearSolicitud(CrearSolicitudRequest request, StreamObserver<SolicitudResponse> responseObserver) {
+				responseObserver.onError(Status.ALREADY_EXISTS
+						.withDescription("Ya existe una solicitud de chat pendiente entre 'mateo' y 'ana'")
+						.asRuntimeException());
+			}
+		});
+
+		assertThatThrownBy(() -> client.crearSolicitud("mateo", "ana"))
+				.isInstanceOf(DuplicateResourceException.class);
+	}
+
+	@Test
+	void crearSolicitud_serviceConversacionCaido_lanzaServiceUnavailableException() throws IOException {
+		ConversacionGrpcClient client = clientePara(new ConversacionGrpcServiceGrpc.ConversacionGrpcServiceImplBase() {
+			@Override
+			public void crearSolicitud(CrearSolicitudRequest request, StreamObserver<SolicitudResponse> responseObserver) {
+				responseObserver.onError(Status.UNAVAILABLE.asRuntimeException());
+			}
+		});
+
+		assertThatThrownBy(() -> client.crearSolicitud("mateo", "ana"))
 				.isInstanceOf(ServiceUnavailableException.class);
 	}
 }

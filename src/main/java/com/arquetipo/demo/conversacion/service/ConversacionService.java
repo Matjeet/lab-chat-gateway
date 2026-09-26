@@ -6,6 +6,7 @@ import com.arquetipo.demo.conversacion.web.dto.CursorPage;
 import com.arquetipo.demo.conversacion.web.dto.MensajeEntrante;
 import com.arquetipo.demo.conversacion.web.dto.MensajeResponse;
 import com.arquetipo.demo.conversacion.web.dto.PageResponse;
+import com.arquetipo.demo.conversacion.web.dto.SolicitudChatResponse;
 import io.grpc.stub.StreamObserver;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -44,6 +45,13 @@ public class ConversacionService {
 		log.debug(">> listaChats(usuario='{}', conCursor={}, size={})", usuario, cursor != null && !cursor.isBlank(), size);
 		CursorPage<ChatResumen> respuesta = grpcClient.listaChats(usuario, cursor, size);
 		log.debug("<< listaChats() -> OK, chats={}, hasMore={}", respuesta.content().size(), respuesta.hasMore());
+		return respuesta;
+	}
+
+	public SolicitudChatResponse crearSolicitud(String solicitante, String solicitado) {
+		log.debug(">> crearSolicitud(solicitante='{}', solicitado='{}')", solicitante, solicitado);
+		SolicitudChatResponse respuesta = grpcClient.crearSolicitud(solicitante, solicitado);
+		log.debug("<< crearSolicitud() -> OK, id={}", respuesta.id());
 		return respuesta;
 	}
 }
