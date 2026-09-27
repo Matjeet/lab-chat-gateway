@@ -34,6 +34,11 @@ service ConversacionGrpcService {
   // Crea una solicitud de chat de solicitante hacia solicitado -- paso previo obligatorio
   // para poder chatear. Unario, sin streaming.
   rpc CrearSolicitud (CrearSolicitudRequest) returns (SolicitudResponse);
+
+  // Acepta o rechaza la solicitud PENDIENTE entre usuario_a y usuario_b (en cualquier orden):
+  // le fija pendiente=false y aceptada=<lo que venga en la peticion>. NOT_FOUND si no hay
+  // ninguna solicitud pendiente entre ambos. Unario, sin streaming.
+  rpc ActualizarSolicitud (ActualizarSolicitudRequest) returns (SolicitudResponse);
 }
 
 // Lo que manda el cliente por el stream de Chat. El remitente no viaja aqui: lo determina la
@@ -125,8 +130,16 @@ message SolicitudResponse {
   bool aceptada = 4;
   // Instante de creacion en UTC, ISO-8601, mismo formato que enviado_en en MensajeEntregado.
   string creada_en = 5;
-  // Si la solicitud sigue pendiente de resolver (aceptar/rechazar no esta implementado
-  // todavia, asi que nace y se queda en true). Mientras haya una solicitud pendiente entre dos
-  // usuarios, CrearSolicitud no crea una segunda -- ver la documentacion del rpc.
+  // Si la solicitud sigue pendiente de resolver. Mientras haya una solicitud pendiente entre
+  // dos usuarios, CrearSolicitud no crea una segunda -- ver la documentacion del rpc.
   bool pendiente = 6;
+}
+
+message ActualizarSolicitudRequest {
+  // Los dos usuarios de la solicitud, en cualquier orden -- se busca la solicitud pendiente
+  // entre ambos, no importa quien fue el solicitante original.
+  string usuario_a = 1;
+  string usuario_b = 2;
+  // true = aceptada, false = rechazada.
+  bool aceptada = 3;
 }

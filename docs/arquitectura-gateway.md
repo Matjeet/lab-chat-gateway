@@ -167,13 +167,18 @@ return service.obtenerUsuario(uid);                                   // a chat-
 ```
 
 **Cuando el recurso no lo identifica un uid** (`ConversacionController.listaChats`, sobre
-`GET /api/v1/conversaciones/{usuario}/chats`, y `ConversacionController.crearSolicitud`, sobre
-`POST /api/v1/conversaciones/solicitudes`): el mismo patrón, con un paso intermedio. El
+`GET /api/v1/conversaciones/{usuario}/chats`; `ConversacionController.crearSolicitud`, sobre
+`POST /api/v1/conversaciones/solicitudes`; y `ConversacionController.actualizarSolicitud`,
+sobre `PATCH /api/v1/conversaciones/solicitudes`): el mismo patrón, con un paso intermedio. El
 recurso está en `username` (de `chat-registro`), no en el uid que devuelve
 `AutenticacionExtractor` — así que antes de comparar hay que resolver uno a partir del otro,
 siempre contra `chat-registro` (la única fuente de verdad de esa relación). No importa si lo
-que se compara viene de la URL (`usuario`, un path variable) o del cuerpo (`solicitante`, un
-campo del JSON) — el patrón es el mismo:
+que se compara viene de la URL (`usuario`, un path variable) o del cuerpo (`solicitante` al
+crear, `solicitado` al actualizar — un campo del JSON) — el patrón es el mismo. Lo que sí
+importa es **contra qué campo** del cuerpo se compara cuando hay más de uno: `crearSolicitud`
+compara contra `solicitante` (nadie solicita en nombre de otro), `actualizarSolicitud` contra
+`solicitado` (solo quien recibió la solicitud puede resolverla, nunca quien la envió) — el
+campo correcto lo decide el caso de uso, no una convención de nombres:
 
 ```java
 String uidAutenticado = autenticacion.uidAutenticado(authorization);        // 401 si falta o es invalido

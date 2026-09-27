@@ -90,10 +90,19 @@ paso previo obligatorio para poder chatear con alguien, enrutado a
 gateway resuelve el `username` del uid autenticado y lo compara — `403` si no coincide).
 `404` si alguno de los dos no existe en `chat-registro`, `409` si ya existe una solicitud
 **pendiente** entre ambos (una ya resuelta no bloquea una nueva). La respuesta incluye
-`pendiente: true` (nace así; no hay forma de resolverla todavía) además de `aceptada: false`.
+`pendiente: true` además de `aceptada: false` al crearse.
+
+`PATCH /api/v1/conversaciones/solicitudes` (**autenticado**) — acepta o rechaza la solicitud
+**pendiente** entre dos usuarios, enrutado a `ConversacionGrpcService/ActualizarSolicitud`.
+Mismo recurso que el `POST` de arriba, distinto método HTTP. Cuerpo
+`{ "solicitante": "mateo", "solicitado": "ana", "aceptada": true }`; a diferencia del `POST`,
+aquí se compara contra `solicitado` (quien recibió la solicitud), no contra `solicitante`:
+solo el receptor puede aceptarla o rechazarla, nunca quien la envió — `403` si el `idToken` no
+es de `solicitado`. `404` si no hay ninguna solicitud pendiente entre ambos. Si `aceptada:
+true`, `chat-conversacion` registra la amistad entre los dos usuarios.
 
 Contrato completo (formato de los mensajes, reglas de entrega, paginación) en
-[`docs/contratos-api.md`](docs/contratos-api.md) §4.3, §4.4, §4.5 y §4.7.
+[`docs/contratos-api.md`](docs/contratos-api.md) §4.3, §4.4, §4.5, §4.7 y §4.10.
 
 ## Consulta de datos de usuario (vía `chat-registro`, autenticada)
 
@@ -159,10 +168,11 @@ Contrato completo en [`docs/contratos-api.md`](docs/contratos-api.md) §4.8 y §
 
 ## Documentación de la API
 
-- **Contratos para clientes** → [`docs/contratos-api.md`](docs/contratos-api.md) — los nueve
+- **Contratos para clientes** → [`docs/contratos-api.md`](docs/contratos-api.md) — los diez
   endpoints del gateway (registro, datos de usuario, disponibilidad de username, WebSocket de
-  chat, historial, lista de chats, solicitud de chat, lista de notificaciones, marcar leída):
-  request/response, errores, notas de integración, modelos TypeScript.
+  chat, historial, lista de chats, solicitud de chat, aceptar/rechazar solicitud, lista de
+  notificaciones, marcar leída): request/response, errores, notas de integración, modelos
+  TypeScript.
 - **Arquitectura del gateway** → [`docs/arquitectura-gateway.md`](docs/arquitectura-gateway.md)
   (cómo se enruta cada petición, cómo añadir un microservicio nuevo — REST-unario o
   WebSocket-bidi).
@@ -289,6 +299,7 @@ microservicio y traduce la respuesta/error). El cliente REST nunca ve un mensaje
 | Historial de chat | `GET` http://localhost:8080/api/v1/conversaciones/{usuarioA}/{usuarioB} |
 | Lista de chats (autenticado) | `GET` http://localhost:8080/api/v1/conversaciones/{usuario}/chats |
 | Crear solicitud de chat (autenticado) | `POST` http://localhost:8080/api/v1/conversaciones/solicitudes |
+| Aceptar/rechazar solicitud de chat (autenticado) | `PATCH` http://localhost:8080/api/v1/conversaciones/solicitudes |
 | Datos de usuario (autenticado) | `GET` http://localhost:8080/api/v1/usuarios/{uid} |
 | Existe username (autenticado) | `GET` http://localhost:8080/api/v1/usuarios/existe |
 | Lista de notificaciones (autenticado) | `GET` http://localhost:8080/api/v1/notificaciones/{receptor} |
