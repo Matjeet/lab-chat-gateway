@@ -3,6 +3,7 @@ package com.arquetipo.demo.conversacion.web;
 import com.arquetipo.demo.common.auth.AutenticacionExtractor;
 import com.arquetipo.demo.common.exception.ForbiddenException;
 import com.arquetipo.demo.conversacion.service.ConversacionService;
+import com.arquetipo.demo.conversacion.web.dto.ActualizarSolicitudRequest;
 import com.arquetipo.demo.conversacion.web.dto.ChatResumen;
 import com.arquetipo.demo.conversacion.web.dto.CursorPage;
 import com.arquetipo.demo.conversacion.web.dto.MensajeResponse;
@@ -15,6 +16,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -43,14 +45,17 @@ import org.springframework.web.bind.annotation.RestController;
  * variables) conviven sin ambiguedad: Spring prioriza el segmento literal al resolver la
  * ruta de una peticion concreta.
  *
- * <p>{@link #listaChats} y {@link #crearSolicitud} son los endpoints autenticados de este
- * controlador — mismo mecanismo que {@code UsuarioController}: {@link AutenticacionExtractor}
- * verifica el {@code idToken} y devuelve el uid autenticado, sin que {@code chat-conversacion}
- * vea nunca el token. La diferencia es que aqui el recurso lo identifica un {@code username} de
- * {@code chat-registro}, no un uid de Firebase, asi que hace falta un paso extra: resolver el
- * {@code username} del uid autenticado con {@link RegistroService#obtenerUsuario} (la misma
- * fuente de verdad que ya usa {@code UsuarioController}) antes de comparar contra
- * {@code usuario}/{@code solicitante}.
+ * <p>{@link #listaChats}, {@link #crearSolicitud} y {@link #actualizarSolicitud} son los
+ * endpoints autenticados de este controlador — mismo mecanismo que {@code UsuarioController}:
+ * {@link AutenticacionExtractor} verifica el {@code idToken} y devuelve el uid autenticado, sin
+ * que {@code chat-conversacion} vea nunca el token. La diferencia es que aqui el recurso lo
+ * identifica un {@code username} de {@code chat-registro}, no un uid de Firebase, asi que hace
+ * falta un paso extra: resolver el {@code username} del uid autenticado con
+ * {@link RegistroService#obtenerUsuario} (la misma fuente de verdad que ya usa
+ * {@code UsuarioController}) antes de comparar contra {@code usuario}/{@code solicitante}/
+ * {@code solicitado}. En {@link #actualizarSolicitud} se compara contra {@code solicitado}
+ * (quien recibio la solicitud), nunca contra {@code solicitante}: solo el receptor puede
+ * aceptarla o rechazarla.
  */
 @Slf4j
 @RestController
@@ -117,6 +122,26 @@ public class ConversacionController implements ConversacionApi {
 		}
 		SolicitudChatResponse respuesta = service.crearSolicitud(request.solicitante(), request.solicitado());
 		log.debug("<< crearSolicitud() -> OK, id={}", respuesta.id());
+		return respuesta;
+	}
+
+	@Override
+	@PatchMapping("/solicitudes")
+	public SolicitudChatResponse actualizarSolicitud(
+			@Valid @RequestBody ActualizarSolicitudRequest request,
+			@RequestHeader(value = HttpHeaders.AUTHORIZATION, required = false) String authorization) {
+		log.debug(">> actualizarSolicitud(solicitante='{}', solicitado='{}', aceptada={})",
+				request.solicitante(), request.solicitado(), request.aceptada());
+		String uidAutenticado = autenticacion.uidAutenticado(authorization);
+		String usernameAutenticado = registroService.obtenerUsuario(uidAutenticado).username();
+		if (!usernameAutenticado.equals(request.solicitado())) {
+			log.warn("Acceso denegado: el usuario autenticado no coincide con el solicitado. solicitado='{}'",
+					request.solicitado());
+			throw new ForbiddenException("El token no autoriza a aceptar o rechazar esta solicitud");
+		}
+		SolicitudChatResponse respuesta = service.actualizarSolicitud(
+				request.solicitante(), request.solicitado(), request.aceptada());
+		log.debug("<< actualizarSolicitud() -> OK, id={}", respuesta.id());
 		return respuesta;
 	}
 }

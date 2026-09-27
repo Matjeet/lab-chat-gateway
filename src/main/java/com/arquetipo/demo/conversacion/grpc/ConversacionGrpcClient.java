@@ -187,6 +187,37 @@ public class ConversacionGrpcClient {
 		}
 	}
 
+	/**
+	 * Acepta o rechaza la solicitud pendiente entre {@code solicitante} y {@code solicitado}
+	 * (en cualquier orden) — {@code chat-conversacion} busca la solicitud pendiente entre ambos,
+	 * este cliente solo traduce el error si no hay ninguna.
+	 */
+	public SolicitudChatResponse actualizarSolicitud(String solicitante, String solicitado, boolean aceptada) {
+		log.debug(">> actualizarSolicitud(solicitante='{}', solicitado='{}', aceptada={})",
+				solicitante, solicitado, aceptada);
+		ActualizarSolicitudRequest peticion = ActualizarSolicitudRequest.newBuilder()
+				.setUsuarioA(solicitante)
+				.setUsuarioB(solicitado)
+				.setAceptada(aceptada)
+				.build();
+
+		try {
+			SolicitudResponse respuesta = blockingStub.actualizarSolicitud(peticion);
+			SolicitudChatResponse resultado = new SolicitudChatResponse(
+					respuesta.getId(),
+					respuesta.getSolicitante(),
+					respuesta.getSolicitado(),
+					respuesta.getAceptada(),
+					Instant.parse(respuesta.getCreadaEn()),
+					respuesta.getPendiente());
+			log.debug("<< actualizarSolicitud() -> OK, id={}, aceptada={}", resultado.id(), resultado.aceptada());
+			return resultado;
+		} catch (StatusRuntimeException ex) {
+			// Sin log de fin a proposito, mismo criterio que en historial().
+			throw traducir(ex);
+		}
+	}
+
 	private ChatResumen aChatResumen(com.arquetipo.demo.conversacion.grpc.ChatResumen resumen) {
 		return new ChatResumen(resumen.getOtroUsuario(), aMensajeResponse(resumen.getUltimoMensaje()));
 	}

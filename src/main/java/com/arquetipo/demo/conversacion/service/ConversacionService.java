@@ -54,4 +54,12 @@ public class ConversacionService {
 		log.debug("<< crearSolicitud() -> OK, id={}", respuesta.id());
 		return respuesta;
 	}
+
+	public SolicitudChatResponse actualizarSolicitud(String solicitante, String solicitado, boolean aceptada) {
+		log.debug(">> actualizarSolicitud(solicitante='{}', solicitado='{}', aceptada={})",
+				solicitante, solicitado, aceptada);
+		SolicitudChatResponse respuesta = grpcClient.actualizarSolicitud(solicitante, solicitado, aceptada);
+		log.debug("<< actualizarSolicitud() -> OK, id={}", respuesta.id());
+		return respuesta;
+	}
 }

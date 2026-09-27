@@ -387,4 +387,78 @@ class ConversacionGrpcClientTest {
 		assertThatThrownBy(() -> client.crearSolicitud("mateo", "ana"))
 				.isInstanceOf(ServiceUnavailableException.class);
 	}
+
+	@Test
+	void actualizarSolicitud_respuestaValida_seTraduceASolicitudChatResponse() throws IOException {
+		ConversacionGrpcClient client = clientePara(new ConversacionGrpcServiceGrpc.ConversacionGrpcServiceImplBase() {
+			@Override
+			public void actualizarSolicitud(ActualizarSolicitudRequest request,
+					StreamObserver<SolicitudResponse> responseObserver) {
+				responseObserver.onNext(SolicitudResponse.newBuilder()
+						.setId("1")
+						.setSolicitante(request.getUsuarioA())
+						.setSolicitado(request.getUsuarioB())
+						.setAceptada(request.getAceptada())
+						.setCreadaEn("2026-09-23T20:53:47.441193Z")
+						.setPendiente(false)
+						.build());
+				responseObserver.onCompleted();
+			}
+		});
+
+		SolicitudChatResponse respuesta = client.actualizarSolicitud("mateo", "ana", true);
+
+		assertThat(respuesta.id()).isEqualTo("1");
+		assertThat(respuesta.solicitante()).isEqualTo("mateo");
+		assertThat(respuesta.solicitado()).isEqualTo("ana");
+		assertThat(respuesta.aceptada()).isTrue();
+		assertThat(respuesta.pendiente()).isFalse();
+	}
+
+	@Test
+	void actualizarSolicitud_haciaUnoMismo_lanzaValidationException() throws IOException {
+		ConversacionGrpcClient client = clientePara(new ConversacionGrpcServiceGrpc.ConversacionGrpcServiceImplBase() {
+			@Override
+			public void actualizarSolicitud(ActualizarSolicitudRequest request,
+					StreamObserver<SolicitudResponse> responseObserver) {
+				responseObserver.onError(Status.INVALID_ARGUMENT
+						.withDescription("No se puede actualizar una solicitud de chat hacia uno mismo")
+						.asRuntimeException());
+			}
+		});
+
+		assertThatThrownBy(() -> client.actualizarSolicitud("mateo", "mateo", true))
+				.isInstanceOf(ValidationException.class)
+				.hasMessage("No se puede actualizar una solicitud de chat hacia uno mismo");
+	}
+
+	@Test
+	void actualizarSolicitud_sinSolicitudPendiente_lanzaResourceNotFoundException() throws IOException {
+		ConversacionGrpcClient client = clientePara(new ConversacionGrpcServiceGrpc.ConversacionGrpcServiceImplBase() {
+			@Override
+			public void actualizarSolicitud(ActualizarSolicitudRequest request,
+					StreamObserver<SolicitudResponse> responseObserver) {
+				responseObserver.onError(Status.NOT_FOUND
+						.withDescription("No existe una solicitud de chat pendiente entre 'mateo' y 'ana'")
+						.asRuntimeException());
+			}
+		});
+
+		assertThatThrownBy(() -> client.actualizarSolicitud("mateo", "ana", false))
+				.isInstanceOf(ResourceNotFoundException.class);
+	}
+
+	@Test
+	void actualizarSolicitud_serviceConversacionCaido_lanzaServiceUnavailableException() throws IOException {
+		ConversacionGrpcClient client = clientePara(new ConversacionGrpcServiceGrpc.ConversacionGrpcServiceImplBase() {
+			@Override
+			public void actualizarSolicitud(ActualizarSolicitudRequest request,
+					StreamObserver<SolicitudResponse> responseObserver) {
+				responseObserver.onError(Status.UNAVAILABLE.asRuntimeException());
+			}
+		});
+
+		assertThatThrownBy(() -> client.actualizarSolicitud("mateo", "ana", true))
+				.isInstanceOf(ServiceUnavailableException.class);
+	}
 }
