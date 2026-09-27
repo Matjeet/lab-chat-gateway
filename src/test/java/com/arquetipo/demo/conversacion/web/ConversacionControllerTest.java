@@ -1,12 +1,14 @@
 package com.arquetipo.demo.conversacion.web;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -351,6 +353,114 @@ class ConversacionControllerTest {
 						.contentType(MediaType.APPLICATION_JSON)
 						.content("""
 								{"solicitante":"mateo","solicitado":"ana"}
+								"""))
+				.andExpect(status().isServiceUnavailable())
+				.andExpect(jsonPath("$.type").value("urn:problem-type:service-unavailable"));
+	}
+
+	@Test
+	void actualizarSolicitud_tokenDelSolicitado_devuelve200() throws Exception {
+		when(autenticacion.uidAutenticado("Bearer token-de-ana")).thenReturn("uid-ana");
+		when(registroService.obtenerUsuario("uid-ana"))
+				.thenReturn(new UsuarioResponse("ana", "ana@example.com"));
+		when(service.actualizarSolicitud("mateo", "ana", true)).thenReturn(new SolicitudChatResponse(
+				"1", "mateo", "ana", true, Instant.parse("2026-09-23T20:53:47.441193Z"), false));
+
+		mockMvc.perform(patch("/api/v1/conversaciones/solicitudes")
+						.header(HttpHeaders.AUTHORIZATION, "Bearer token-de-ana")
+						.contentType(MediaType.APPLICATION_JSON)
+						.content("""
+								{"solicitante":"mateo","solicitado":"ana","aceptada":true}
+								"""))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.id").value("1"))
+				.andExpect(jsonPath("$.aceptada").value(true))
+				.andExpect(jsonPath("$.pendiente").value(false));
+	}
+
+	@Test
+	void actualizarSolicitud_cuerpoInvalido_devuelve400ConErroresSinLlamarANingunServicio() throws Exception {
+		when(autenticacion.uidAutenticado("Bearer token-de-ana")).thenReturn("uid-ana");
+		when(registroService.obtenerUsuario("uid-ana"))
+				.thenReturn(new UsuarioResponse("ana", "ana@example.com"));
+
+		mockMvc.perform(patch("/api/v1/conversaciones/solicitudes")
+						.header(HttpHeaders.AUTHORIZATION, "Bearer token-de-ana")
+						.contentType(MediaType.APPLICATION_JSON)
+						.content("""
+								{"solicitante":"m","solicitado":"","aceptada":true}
+								"""))
+				.andExpect(status().isBadRequest())
+				.andExpect(jsonPath("$.errors").isArray());
+
+		verify(service, never()).actualizarSolicitud(any(), any(), anyBoolean());
+	}
+
+	@Test
+	void actualizarSolicitud_tokenDelSolicitante_devuelve403SinLlamarAlServicioDeConversacion() throws Exception {
+		when(autenticacion.uidAutenticado("Bearer token-de-mateo")).thenReturn("uid-mateo");
+		when(registroService.obtenerUsuario("uid-mateo"))
+				.thenReturn(new UsuarioResponse("mateo", "mateo@example.com"));
+
+		mockMvc.perform(patch("/api/v1/conversaciones/solicitudes")
+						.header(HttpHeaders.AUTHORIZATION, "Bearer token-de-mateo")
+						.contentType(MediaType.APPLICATION_JSON)
+						.content("""
+								{"solicitante":"mateo","solicitado":"ana","aceptada":true}
+								"""))
+				.andExpect(status().isForbidden())
+				.andExpect(jsonPath("$.type").value("urn:problem-type:forbidden"));
+
+		verify(service, never()).actualizarSolicitud(any(), any(), anyBoolean());
+	}
+
+	@Test
+	void actualizarSolicitud_sinCabeceraAuthorization_devuelve401SinLlamarAlServicio() throws Exception {
+		when(autenticacion.uidAutenticado(null))
+				.thenThrow(new UnauthorizedException("Falta la cabecera Authorization: Bearer <idToken>"));
+
+		mockMvc.perform(patch("/api/v1/conversaciones/solicitudes")
+						.contentType(MediaType.APPLICATION_JSON)
+						.content("""
+								{"solicitante":"mateo","solicitado":"ana","aceptada":true}
+								"""))
+				.andExpect(status().isUnauthorized())
+				.andExpect(jsonPath("$.type").value("urn:problem-type:unauthorized"));
+
+		verify(service, never()).actualizarSolicitud(any(), any(), anyBoolean());
+	}
+
+	@Test
+	void actualizarSolicitud_sinSolicitudPendiente_devuelve404() throws Exception {
+		when(autenticacion.uidAutenticado("Bearer token-de-ana")).thenReturn("uid-ana");
+		when(registroService.obtenerUsuario("uid-ana"))
+				.thenReturn(new UsuarioResponse("ana", "ana@example.com"));
+		when(service.actualizarSolicitud("mateo", "ana", false))
+				.thenThrow(new ResourceNotFoundException(
+						"No existe una solicitud de chat pendiente entre 'mateo' y 'ana'"));
+
+		mockMvc.perform(patch("/api/v1/conversaciones/solicitudes")
+						.header(HttpHeaders.AUTHORIZATION, "Bearer token-de-ana")
+						.contentType(MediaType.APPLICATION_JSON)
+						.content("""
+								{"solicitante":"mateo","solicitado":"ana","aceptada":false}
+								"""))
+				.andExpect(status().isNotFound());
+	}
+
+	@Test
+	void actualizarSolicitud_conversacionCaida_devuelve503() throws Exception {
+		when(autenticacion.uidAutenticado("Bearer token-de-ana")).thenReturn("uid-ana");
+		when(registroService.obtenerUsuario("uid-ana"))
+				.thenReturn(new UsuarioResponse("ana", "ana@example.com"));
+		when(service.actualizarSolicitud("mateo", "ana", true))
+				.thenThrow(new ServiceUnavailableException("chat-conversacion"));
+
+		mockMvc.perform(patch("/api/v1/conversaciones/solicitudes")
+						.header(HttpHeaders.AUTHORIZATION, "Bearer token-de-ana")
+						.contentType(MediaType.APPLICATION_JSON)
+						.content("""
+								{"solicitante":"mateo","solicitado":"ana","aceptada":true}
 								"""))
 				.andExpect(status().isServiceUnavailable())
 				.andExpect(jsonPath("$.type").value("urn:problem-type:service-unavailable"));

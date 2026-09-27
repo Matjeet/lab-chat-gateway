@@ -2,8 +2,8 @@
 
 Referencia de **todo** lo que expone **chat-gateway** al cliente (frontend web, app móvil):
 registro de usuarios, chat en tiempo real (WebSocket + historial + lista de chats + solicitud
-de chat), notificaciones y consultas sobre usuarios (datos propios, disponibilidad de un
-username). Pensada para consumirse sin leer el código.
+de chat + aceptar/rechazar solicitud), notificaciones y consultas sobre usuarios (datos
+propios, disponibilidad de un username). Pensada para consumirse sin leer el código.
 
 > **Quién atiende cada petición.** Como cliente, hablas siempre con el gateway — por REST o,
 > para el chat, por WebSocket — nunca directo con los microservicios. El gateway no implementa
@@ -19,6 +19,7 @@ username). Pensada para consumirse sin leer el código.
 > | `GET /api/v1/conversaciones/{usuarioA}/{usuarioB}` | `chat-conversacion` | `ConversacionGrpcService/Historial` (unario) | ídem |
 > | `GET /api/v1/conversaciones/{usuario}/chats` | `chat-conversacion` | `ConversacionGrpcService/ListaChats` (unario) | ídem |
 > | `POST /api/v1/conversaciones/solicitudes` | `chat-conversacion` | `ConversacionGrpcService/CrearSolicitud` (unario) | ídem |
+> | `PATCH /api/v1/conversaciones/solicitudes` | `chat-conversacion` | `ConversacionGrpcService/ActualizarSolicitud` (unario) | ídem |
 > | `GET /api/v1/notificaciones/{receptor}` | `chat-notificaciones` | `NotificacionGrpcService/ListaNotificaciones` (unario) | `chat-notificaciones/README.md` |
 > | `PATCH /api/v1/notificaciones/{id}` | `chat-notificaciones` | `NotificacionGrpcService/ActualizarLeida` (unario) | ídem |
 >
@@ -27,10 +28,11 @@ username). Pensada para consumirse sin leer el código.
 > documentaba `chat-conversacion` — este cambio de arquitectura no afecta a ningún cliente ya
 > integrado, solo cambia el host al que apunta `NEXT_PUBLIC_API_BASE_URL` (o equivalente):
 > ahora es el del gateway. `GET /api/v1/conversaciones/{usuario}/chats`,
-> `POST /api/v1/conversaciones/solicitudes` y los dos endpoints de `/api/v1/notificaciones/**`
-> son la excepción: ninguno tiene versión "original" en su microservicio (nacieron como rpc
-> gRPC sin equivalente REST, ver `chat-conversacion/docs/contrato-grpc-conversacion.md` §5 y §6
-> y `chat-notificaciones/README.md`) — este gateway es quien primero los expone por REST.
+> `POST /api/v1/conversaciones/solicitudes`, `PATCH /api/v1/conversaciones/solicitudes` y los
+> dos endpoints de `/api/v1/notificaciones/**` son la excepción: ninguno tiene versión
+> "original" en su microservicio (nacieron como rpc gRPC sin equivalente REST, ver
+> `chat-conversacion/docs/contrato-grpc-conversacion.md` y `chat-notificaciones/README.md`) —
+> este gateway es quien primero los expone por REST.
 
 La fuente de verdad ejecutable del REST es la especificación **OpenAPI** que genera el propio
 servicio (el WebSocket no aparece ahí, Swagger no lo documenta); este documento la resume y
@@ -50,7 +52,7 @@ añade las notas de integración que no caben en las anotaciones.
 | Formato de errores (REST) | `application/problem+json` (RFC 9457) — el WebSocket no lo usa, ver §3 |
 | Codificación | UTF-8 |
 | Fechas y horas | ISO-8601 en UTC, con precisión de microsegundos — ej. `2026-09-09T03:13:36.766818Z` |
-| Autenticación | Ninguna en `POST /api/v1/registro`, `GET /ws/chat/**` ni `GET /api/v1/conversaciones/{usuarioA}/{usuarioB}`. Los demás exigen `Authorization: Bearer <idToken>`: `GET /api/v1/usuarios/{uid}` (§4.2), `GET /api/v1/conversaciones/{usuario}/chats` (§4.5), `POST /api/v1/conversaciones/solicitudes` (§4.7) y `GET /api/v1/notificaciones/{receptor}` (§4.8) comparan la identidad contra el recurso; `GET /api/v1/usuarios/existe` (§4.6) solo exige estar autenticado, sin comparar; `PATCH /api/v1/notificaciones/{id}` (§4.9) compara por uid directo, sin verificar que sea el receptor real de esa notificación (ver §4.9). |
+| Autenticación | Ninguna en `POST /api/v1/registro`, `GET /ws/chat/**` ni `GET /api/v1/conversaciones/{usuarioA}/{usuarioB}`. Los demás exigen `Authorization: Bearer <idToken>`: `GET /api/v1/usuarios/{uid}` (§4.2), `GET /api/v1/conversaciones/{usuario}/chats` (§4.5), `POST /api/v1/conversaciones/solicitudes` (§4.7), `GET /api/v1/notificaciones/{receptor}` (§4.8) y `PATCH /api/v1/conversaciones/solicitudes` (§4.10) comparan la identidad contra el recurso; `GET /api/v1/usuarios/existe` (§4.6) solo exige estar autenticado, sin comparar; `PATCH /api/v1/notificaciones/{id}` (§4.9) compara por uid directo, sin verificar que sea el receptor real de esa notificación (ver §4.9). |
 | CORS (endpoints REST) | Habilitado para `/api/**` en el propio gateway (no en cada microservicio). Orígenes permitidos vía `CORS_ALLOWED_ORIGINS` (lista separada por comas). |
 | Orígenes permitidos (WebSocket) | `WEBSOCKET_ALLOWED_ORIGINS` (lista separada por comas). Variable **independiente** de `CORS_ALLOWED_ORIGINS`: el *handshake* de WebSocket no pasa por CORS. |
 
@@ -712,9 +714,9 @@ Cuerpo:
 |---|---|---|
 | `id` | string | Identificador generado. |
 | `solicitante` / `solicitado` | string | Tal cual se enviaron. |
-| `aceptada` | boolean | Siempre `false` — aceptar o rechazar una solicitud no está implementado todavía. |
+| `aceptada` | boolean | Siempre `false` al crearse — se resuelve con `PATCH /api/v1/conversaciones/solicitudes` (§4.10). |
 | `creadaEn` | string (ISO-8601) | Instante de creación en UTC. |
-| `pendiente` | boolean | Siempre `true` por ahora (nace así y no hay forma de resolverla todavía). Mientras sea `true`, bloquea una solicitud nueva entre el mismo par de usuarios — ver `409` más abajo. |
+| `pendiente` | boolean | Siempre `true` al crearse. Mientras sea `true`, bloquea una solicitud nueva entre el mismo par de usuarios — ver `409` más abajo. Pasa a `false` al aceptarse o rechazarse (§4.10). |
 
 #### Respuesta `400 Bad Request`
 
@@ -744,8 +746,7 @@ perfil de `chat-registro` se borró entre la autenticación y esta comprobación
 Ya existe una solicitud **pendiente** (`pendiente: true`) entre `solicitante` y `solicitado`,
 en cualquier sentido (`detail`: `"Ya existe una solicitud de chat pendiente entre '<a>' y
 '<b>'"`) — en ese caso no se crea nada nuevo. Una solicitud anterior ya resuelta
-(`pendiente: false`, aunque hoy no hay forma de llegar a ese estado) no cuenta para este
-chequeo y no bloquea una solicitud nueva.
+(`pendiente: false`, ver §4.10) no cuenta para este chequeo y no bloquea una solicitud nueva.
 
 #### Respuesta `503` / `500`
 
@@ -939,6 +940,99 @@ curl -i -X PATCH http://localhost:8080/api/v1/notificaciones/1 \
 
 ---
 
+### 4.10 `PATCH /api/v1/conversaciones/solicitudes` — Aceptar o rechazar una solicitud de chat (autenticado)
+
+Enruta por una llamada unaria `ConversacionGrpcService/ActualizarSolicitud`. Mismo recurso que
+§4.7 (`/api/v1/conversaciones/solicitudes`), distinto método HTTP: `POST` crea, `PATCH`
+resuelve.
+
+> **Quién verifica qué.** Mismo mecanismo que §4.7, pero comparando contra `solicitado`, no
+> contra `solicitante`: el gateway valida el `idToken` **él mismo** y resuelve el `username`
+> del uid autenticado contra `chat-registro` para compararlo contra `solicitado` del cuerpo. Un
+> token válido de otro usuario no autoriza a resolver la solicitud — **solo quien la recibió
+> puede aceptarla o rechazarla, nunca quien la envió**.
+
+#### Petición
+
+| | |
+|---|---|
+| Método | `PATCH` |
+| Path | `/api/v1/conversaciones/solicitudes` |
+| Headers | `Content-Type: application/json`, `Authorization: Bearer <idToken>` |
+
+Cuerpo:
+
+```json
+{
+  "solicitante": "mateo",
+  "solicitado": "ana",
+  "aceptada": true
+}
+```
+
+| Campo | Tipo | Obligatorio | Reglas |
+|---|---|---|---|
+| `solicitante` | string | sí | Username (`chat-registro`) de quien envió la solicitud originalmente. 3–50 caracteres, solo `A–Z a–z 0–9 . _ -`. |
+| `solicitado` | string | sí | Username (`chat-registro`) de quien la recibió. Mismo formato. **Debe ser el usuario autenticado** — ver arriba. |
+| `aceptada` | boolean | sí | `true` = aceptar, `false` = rechazar. |
+
+#### Respuesta `200 OK`
+
+```json
+{
+  "id": "66f1c2a8b4c9a12345678901",
+  "solicitante": "mateo",
+  "solicitado": "ana",
+  "aceptada": true,
+  "creadaEn": "2026-09-23T20:53:47.441193Z",
+  "pendiente": false
+}
+```
+
+Mismos campos que §4.7. `pendiente` siempre pasa a `false`; `aceptada` queda al valor pedido.
+Si `aceptada: true`, `chat-conversacion` registra la amistad entre ambos usuarios (no expuesto
+por ningún endpoint todavía).
+
+#### Respuesta `400 Bad Request`
+
+`type` = `urn:problem-type:validation-error`. Mismas dos causas que §4.7: formato inválido
+(`errors[]` no vacío, detectado por el gateway) o `solicitante`/`solicitado` son el mismo
+usuario (`chat-conversacion` lo detecta; `errors` vacío, `detail`: `"No se puede actualizar una
+solicitud de chat hacia uno mismo"`).
+
+#### Respuesta `401 Unauthorized` / `403 Forbidden`
+
+Misma forma que §4.7: `401` si falta la cabecera, viene sin `Bearer `, o el `idToken` es
+inválido/expirado; `403` si el `idToken` es válido pero de un usuario distinto a `solicitado`
+— en ambos casos, sin llamar por gRPC.
+
+#### Respuesta `404 Not Found`
+
+No existe una solicitud **pendiente** entre `solicitante` y `solicitado`, en cualquier sentido
+(`detail`: `"No existe una solicitud de chat pendiente entre '<a>' y '<b>'"`) — no distingue
+"nunca existió" de "ya se resolvió antes".
+
+#### Respuesta `503` / `500`
+
+Mismo criterio que el resto del gateway: `503` si `chat-registro` (al resolver el `username`
+autenticado) o `chat-conversacion` (al actualizar la solicitud) no responden; `500` ante
+cualquier otro fallo inesperado.
+
+> **La notificación por RabbitMQ es asunto de `chat-conversacion`, no del gateway** — mismo
+> criterio que §4.7: publica el estado ya resuelto en una routing key distinta
+> (`notificacion.solicitud.actualizada`), best-effort, sin afectar esta respuesta.
+
+#### Ejemplo `curl`
+
+```bash
+curl -i -X PATCH http://localhost:8080/api/v1/conversaciones/solicitudes \
+  -H "Authorization: Bearer <idToken>" \
+  -H 'Content-Type: application/json' \
+  -d '{"solicitante":"mateo","solicitado":"ana","aceptada":true}'
+```
+
+---
+
 ## 5. Notas de integración para el frontend
 
 1. **Ramifica por `type`, no por `status` ni por textos.** `title`/`detail` pueden cambiar de
@@ -998,8 +1092,8 @@ curl -i -X PATCH http://localhost:8080/api/v1/notificaciones/1 \
     `chat-conversacion`. No hay forma de crear una solicitud "en nombre de" otro usuario.
 19. **Una solicitud rechazada por `409` no significa que la conversación ya exista** — solo que
     ya hay una solicitud **pendiente** (`pendiente: true`) entre esos dos usuarios; una ya
-    resuelta no cuenta. No hay manera de "reintentar" salvo que se resuelva la pendiente (no
-    hay endpoint para eso todavía).
+    resuelta no cuenta. Para "reintentar" hay que resolver antes la pendiente con
+    `PATCH /api/v1/conversaciones/solicitudes` (§4.10).
 20. **`GET /api/v1/notificaciones/{receptor}` (§4.8) sigue el mismo mecanismo de autenticación
     que la lista de chats (§4.5)**: comparación por `username` resuelto, no por uid directo.
 21. **`PATCH /api/v1/notificaciones/{id}` (§4.9) es distinto a todos los demás endpoints
@@ -1008,6 +1102,11 @@ curl -i -X PATCH http://localhost:8080/api/v1/notificaciones/1 \
     (no vincula todavía notificación → receptor de forma verificable), no algo que el cliente
     pueda evitar. No lo trates como protegido frente a otro usuario autenticado que conozca el
     `id`.
+22. **`PATCH /api/v1/conversaciones/solicitudes` (§4.10) compara contra `solicitado`, no contra
+    `solicitante`** — al revés que el `POST` que crea la solicitud (§4.7). Manda siempre los
+    mismos dos usernames que usaste (o recibiste) al crear la solicitud; si los invocas al
+    revés, el gateway responde `403` aunque ambos usernames sean correctos, porque comparará tu
+    identidad contra el campo equivocado.
 
 ---
 
@@ -1078,19 +1177,25 @@ export interface CursorPage<T> {
   hasMore: boolean;
 }
 
-// --- Solicitud de chat (§4.7) ---
+// --- Solicitud de chat (§4.7, §4.10) ---
 export interface SolicitudChatRequest {
   solicitante: string; // debe ser tu propio username; 3-50, /^[A-Za-z0-9._-]+$/
   solicitado: string;  // 3-50, /^[A-Za-z0-9._-]+$/; distinto de solicitante
+}
+
+export interface ActualizarSolicitudRequest {
+  solicitante: string; // 3-50, /^[A-Za-z0-9._-]+$/; quien envio la solicitud originalmente
+  solicitado: string;  // debe ser tu propio username; 3-50, /^[A-Za-z0-9._-]+$/
+  aceptada: boolean;   // true = aceptar, false = rechazar
 }
 
 export interface SolicitudChatResponse {
   id: string;
   solicitante: string;
   solicitado: string;
-  aceptada: boolean;  // siempre false por ahora
+  aceptada: boolean;  // false al crearse; refleja lo pedido tras aceptar/rechazar
   creadaEn: string;   // ISO-8601 UTC
-  pendiente: boolean; // siempre true por ahora; bloquea una solicitud nueva entre el mismo par
+  pendiente: boolean; // true al crearse; false tras aceptarse o rechazarse
 }
 
 // --- Notificaciones (§4.8, §4.9) ---
@@ -1193,7 +1298,8 @@ cómo se añade un microservicio nuevo al gateway.
 
 | Fecha | Cambio |
 |---|---|
-| 2026-09-26 | `NotificacionResponse` (§4.8, §4.9) suma el campo `meta`. Nuevo campo en `chat-notificaciones` (`NotificacionItem.meta`, texto JSON opcional, información adicional propia de `tipo`, ej. `{"aceptada":false,"pendiente":true}` para `"solicitud"`): el gateway solo lo propaga, sin interpretarlo. |
+| 2026-09-26 (2) | Se añade `PATCH /api/v1/conversaciones/solicitudes` (§4.10), enrutando a `ConversacionGrpcService/ActualizarSolicitud` (`chat-conversacion`). Acepta o rechaza la solicitud pendiente entre dos usuarios; a diferencia de §4.7, compara la identidad contra `solicitado` (quien recibió la solicitud), no contra `solicitante` — solo el receptor puede resolverla. |
+| 2026-09-26 (1) | `NotificacionResponse` (§4.8, §4.9) suma el campo `meta`. Nuevo campo en `chat-notificaciones` (`NotificacionItem.meta`, texto JSON opcional, información adicional propia de `tipo`, ej. `{"aceptada":false,"pendiente":true}` para `"solicitud"`): el gateway solo lo propaga, sin interpretarlo. |
 | 2026-09-25 | Se añaden `GET /api/v1/notificaciones/{receptor}` (`NotificacionGrpcService/ListaNotificaciones`) y `PATCH /api/v1/notificaciones/{id}` (`NotificacionGrpcService/ActualizarLeida`), ambos hacia `chat-notificaciones`. Primeros endpoints con dos mecanismos de autenticación distintos según la instrucción explícita del caso: el primero compara por `username` resuelto (como §4.5), el segundo por uid directo (como §4.2) sin verificar que sea el receptor real de la notificación — limitación conocida de `chat-notificaciones`, documentada en §4.9. |
 | 2026-09-24 (2) | `SolicitudChatResponse` suma el campo `pendiente`. Nueva regla de negocio en `chat-conversacion`: el `409` de §4.7 solo ocurre si ya existe una solicitud **pendiente** entre los dos usuarios — antes bloqueaba cualquier solicitud previa, sin distinguir su estado. |
 | 2026-09-24 (1) | Se añade `POST /api/v1/conversaciones/solicitudes`, enrutando por gRPC a `ConversacionGrpcService/CrearSolicitud` (`chat-conversacion`) — paso previo obligatorio para poder chatear con alguien. Exige autenticación y compara identidad: `solicitante` debe ser el `username` del uid autenticado (mismo mecanismo que §4.5), 403 si no coincide. |

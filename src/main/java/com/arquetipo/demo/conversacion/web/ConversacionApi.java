@@ -1,5 +1,6 @@
 package com.arquetipo.demo.conversacion.web;
 
+import com.arquetipo.demo.conversacion.web.dto.ActualizarSolicitudRequest;
 import com.arquetipo.demo.conversacion.web.dto.ChatResumen;
 import com.arquetipo.demo.conversacion.web.dto.CursorPage;
 import com.arquetipo.demo.conversacion.web.dto.MensajeResponse;
@@ -160,8 +161,8 @@ public interface ConversacionApi {
 					`solicitado` deben existir en `chat-registro` y ser distintos entre sí; no
 					puede existir ya una solicitud **pendiente** entre ambos, en cualquier
 					sentido (una solicitud ya resuelta no bloquea una nueva). La solicitud nace
-					siempre con `aceptada: false` y `pendiente: true` — aceptarla o rechazarla no
-					está implementado todavía, así que por ahora se queda pendiente para siempre.
+					siempre con `aceptada: false` y `pendiente: true` — ver
+					`PATCH /api/v1/conversaciones/solicitudes` para aceptarla o rechazarla.
 					""",
 			security = @SecurityRequirement(name = "bearerAuth"))
 	@ApiResponses({
@@ -219,4 +220,69 @@ public interface ConversacionApi {
 							schema = @Schema(implementation = ProblemDetail.class)))
 	})
 	SolicitudChatResponse crearSolicitud(SolicitudChatRequest request, String authorization);
+
+	@Operation(summary = "Aceptar o rechazar una solicitud de chat",
+			description = """
+					Requiere `Authorization: Bearer <idToken>` — el gateway verifica el token él
+					mismo, resuelve el `username` del uid autenticado y comprueba que coincide con
+					`solicitado`; un token válido de otro usuario no autoriza a resolver la
+					solicitud (solo quien la recibió puede aceptarla o rechazarla, nunca quien la
+					envió).
+
+					Busca la solicitud **pendiente** entre `solicitante` y `solicitado` (en
+					cualquier sentido) y le fija `pendiente: false` y `aceptada` al valor pedido.
+					Si `aceptada` es `true`, `chat-conversacion` registra la amistad entre ambos.
+					`404` si no hay ninguna solicitud pendiente entre los dos (no distingue "nunca
+					existió" de "ya se resolvió").
+					""",
+			security = @SecurityRequirement(name = "bearerAuth"))
+	@ApiResponses({
+			@ApiResponse(
+					responseCode = "200",
+					description = "Solicitud actualizada",
+					content = @Content(
+							mediaType = MediaType.APPLICATION_JSON_VALUE,
+							schema = @Schema(implementation = SolicitudChatResponse.class),
+							examples = @ExampleObject(value = """
+									{
+									  "id": "66f1c2a8b4c9a12345678901",
+									  "solicitante": "mateo",
+									  "solicitado": "ana",
+									  "aceptada": true,
+									  "creadaEn": "2026-09-23T20:53:47.441193Z",
+									  "pendiente": false
+									}
+									"""))),
+			@ApiResponse(
+					responseCode = "400",
+					description = "El cuerpo no cumple el formato, o solicitante y solicitado son el mismo usuario.",
+					content = @Content(
+							mediaType = MediaType.APPLICATION_PROBLEM_JSON_VALUE,
+							schema = @Schema(implementation = ProblemDetail.class))),
+			@ApiResponse(
+					responseCode = "401",
+					description = "Falta la cabecera Authorization, o el idToken es inválido/expirado",
+					content = @Content(
+							mediaType = MediaType.APPLICATION_PROBLEM_JSON_VALUE,
+							schema = @Schema(implementation = ProblemDetail.class))),
+			@ApiResponse(
+					responseCode = "403",
+					description = "El idToken es válido pero pertenece a un usuario distinto de solicitado",
+					content = @Content(
+							mediaType = MediaType.APPLICATION_PROBLEM_JSON_VALUE,
+							schema = @Schema(implementation = ProblemDetail.class))),
+			@ApiResponse(
+					responseCode = "404",
+					description = "No hay ninguna solicitud pendiente entre solicitante y solicitado",
+					content = @Content(
+							mediaType = MediaType.APPLICATION_PROBLEM_JSON_VALUE,
+							schema = @Schema(implementation = ProblemDetail.class))),
+			@ApiResponse(
+					responseCode = "503",
+					description = "chat-conversacion o chat-registro no estan disponibles en este momento.",
+					content = @Content(
+							mediaType = MediaType.APPLICATION_PROBLEM_JSON_VALUE,
+							schema = @Schema(implementation = ProblemDetail.class)))
+	})
+	SolicitudChatResponse actualizarSolicitud(ActualizarSolicitudRequest request, String authorization);
 }
