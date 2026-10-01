@@ -136,7 +136,8 @@ Cuerpo:
 {
   "username": "mateo",
   "email": "mateo@example.com",
-  "password": "Passw0rd!23"
+  "password": "Passw0rd!23",
+  "avatar": "https://cdn.example.com/avatares/mateo.png"
 }
 ```
 
@@ -145,9 +146,17 @@ Cuerpo:
 | `username` | string | sí | 3–50 caracteres. Solo `A–Z a–z 0–9 . _ -`. Único (sin distinguir mayúsculas). |
 | `email` | string | sí | Formato de email válido. Máx. 255 caracteres. Único (sin distinguir mayúsculas). Se normaliza a minúsculas antes de guardar. |
 | `password` | string | sí | 8–20 caracteres. Al menos una mayúscula, una minúscula, un número y un carácter especial (cualquiera que no sea letra, número o espacio). Ningún carácter repetido 4 o más veces seguidas (`aaaa` invalido, `aaa` válido). El gateway solo la transporta: no la persiste ni la loguea en ningún punto. |
+| `avatar` | string \| null | no | ≤500 caracteres, en una sola línea. Solo dos formatos: un enlace `http(s)` común, o una etiqueta `<Blobatar .../>` (avatar animado de esa librería) que el cliente renderiza tal cual. Cualquier otro formato (otra etiqueta HTML/JSX, un esquema distinto de `http`/`https`, un salto de línea embebido) responde `400`. Se puede omitir o mandar `""` — equivale a "sin avatar" (ver nota más abajo). |
 
 Se ignora cualquier campo extra del cuerpo (p. ej. un `uid` o `proveedor`: ninguno de los dos
 es un campo de la petición — el servidor los determina él mismo).
+
+> **`avatar` vacío o entre comillas.** `""` (o solo espacios) se trata como "sin avatar", no
+> como un formato inválido — el gateway lo normaliza a `null` antes de validar, mismo criterio
+> que aplica `chat-registro` (ver su `docs/contrato-grpc-registro.md`). Si el valor llega
+> envuelto en un único par de comillas rectas (simples o dobles) que encierran toda la cadena
+> — p. ej. copiado tal cual un literal de string —, el gateway retira ese par exterior antes de
+> validar/reenviar, sin alterar nada más del contenido.
 
 #### Respuesta `201 Created`
 
@@ -156,6 +165,7 @@ es un campo de la petición — el servidor los determina él mismo).
   "id": 1,
   "username": "mateo",
   "email": "mateo@example.com",
+  "avatar": "https://cdn.example.com/avatares/mateo.png",
   "proveedor": "password",
   "activo": true,
   "createdAt": "2026-09-09T03:13:36.766818Z"
@@ -167,6 +177,7 @@ es un campo de la petición — el servidor los determina él mismo).
 | `id` | number | Identificador asignado por el servidor. |
 | `username` | string | Tal cual se envió (recortando espacios). |
 | `email` | string | Normalizado a minúsculas. |
+| `avatar` | string \| null | `null` si no se envió ninguno (o se envió `""`). El mismo valor ya normalizado (sin comillas envolventes) que quedó persistido. |
 | `proveedor` | string | Proveedor de identidad usado en el alta (hoy siempre `"password"`). |
 | `activo` | boolean | Siempre `true` en un alta nueva. |
 | `createdAt` | string (ISO-8601) | Instante de creación en UTC. |
@@ -223,7 +234,7 @@ backoff.
 ```bash
 curl -i -X POST http://localhost:8080/api/v1/registro \
   -H 'Content-Type: application/json' \
-  -d '{"username":"mateo","email":"mateo@example.com","password":"Passw0rd!23"}'
+  -d '{"username":"mateo","email":"mateo@example.com","password":"Passw0rd!23","avatar":"https://cdn.example.com/avatares/mateo.png"}'
 ```
 
 ---
@@ -1118,12 +1129,14 @@ export interface RegistroRequest {
   username: string; // 3–50, /^[A-Za-z0-9._-]+$/
   email: string;    // email válido, <= 255
   password: string; // 8–20; mayuscula + minuscula + numero + especial; sin 4+ repetidos
+  avatar?: string | null; // opcional; "" equivale a ausente. <=500, link http(s) o <Blobatar .../>
 }
 
 export interface RegistroResponse {
   id: number;
   username: string;
   email: string;
+  avatar: string | null; // null si no se eligio avatar
   proveedor: string; // hoy siempre "password"
   activo: boolean;
   createdAt: string; // ISO-8601 UTC
@@ -1298,6 +1311,7 @@ cómo se añade un microservicio nuevo al gateway.
 
 | Fecha | Cambio |
 |---|---|
+| 2026-09-29 | `RegistroRequest`/`RegistroResponse` (§4.1) suman el campo opcional `avatar`. Nuevo campo en `chat-registro` (`RegistrarUsuarioRequest.avatar`, `RegistrarUsuarioResponse.avatar`): un enlace `http(s)` o una etiqueta `<Blobatar .../>`, en una sola línea. El gateway normaliza `""`/espacios a "sin avatar" y retira comillas envolventes antes de validar, mismo criterio que `chat-registro`. |
 | 2026-09-26 (2) | Se añade `PATCH /api/v1/conversaciones/solicitudes` (§4.10), enrutando a `ConversacionGrpcService/ActualizarSolicitud` (`chat-conversacion`). Acepta o rechaza la solicitud pendiente entre dos usuarios; a diferencia de §4.7, compara la identidad contra `solicitado` (quien recibió la solicitud), no contra `solicitante` — solo el receptor puede resolverla. |
 | 2026-09-26 (1) | `NotificacionResponse` (§4.8, §4.9) suma el campo `meta`. Nuevo campo en `chat-notificaciones` (`NotificacionItem.meta`, texto JSON opcional, información adicional propia de `tipo`, ej. `{"aceptada":false,"pendiente":true}` para `"solicitud"`): el gateway solo lo propaga, sin interpretarlo. |
 | 2026-09-25 | Se añaden `GET /api/v1/notificaciones/{receptor}` (`NotificacionGrpcService/ListaNotificaciones`) y `PATCH /api/v1/notificaciones/{id}` (`NotificacionGrpcService/ActualizarLeida`), ambos hacia `chat-notificaciones`. Primeros endpoints con dos mecanismos de autenticación distintos según la instrucción explícita del caso: el primero compara por `username` resuelto (como §4.5), el segundo por uid directo (como §4.2) sin verificar que sea el receptor real de la notificación — limitación conocida de `chat-notificaciones`, documentada en §4.9. |

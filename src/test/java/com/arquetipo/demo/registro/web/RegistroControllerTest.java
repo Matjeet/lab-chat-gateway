@@ -1,6 +1,8 @@
 package com.arquetipo.demo.registro.web;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -11,10 +13,12 @@ import com.arquetipo.demo.common.exception.FieldError;
 import com.arquetipo.demo.common.exception.ServiceUnavailableException;
 import com.arquetipo.demo.common.exception.ValidationException;
 import com.arquetipo.demo.registro.service.RegistroService;
+import com.arquetipo.demo.registro.web.dto.RegistroRequest;
 import com.arquetipo.demo.registro.web.dto.RegistroResponse;
 import java.time.Instant;
 import java.util.List;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.http.MediaType;
@@ -32,8 +36,8 @@ class RegistroControllerTest {
 
 	@Test
 	void registrar_datosValidos_devuelve201ConProveedor() throws Exception {
-		when(registroService.registrar(any()))
-				.thenReturn(new RegistroResponse(1L, "mateo", "mateo@example.com", "password", true, Instant.now()));
+		when(registroService.registrar(any())).thenReturn(new RegistroResponse(
+				1L, "mateo", "mateo@example.com", null, "password", true, Instant.now()));
 
 		mockMvc.perform(post("/api/v1/registro")
 						.contentType(MediaType.APPLICATION_JSON)
@@ -45,6 +49,65 @@ class RegistroControllerTest {
 				.andExpect(jsonPath("$.username").value("mateo"))
 				.andExpect(jsonPath("$.proveedor").value("password"))
 				.andExpect(jsonPath("$.password").doesNotExist());
+	}
+
+	@Test
+	void registrar_conAvatarValido_loReenviaTalCual() throws Exception {
+		when(registroService.registrar(any())).thenReturn(new RegistroResponse(1L, "mateo",
+				"mateo@example.com", "https://cdn.example.com/avatares/mateo.png", "password", true, Instant.now()));
+
+		mockMvc.perform(post("/api/v1/registro")
+						.contentType(MediaType.APPLICATION_JSON)
+						.content("""
+								{"username":"mateo","email":"mateo@example.com","password":"Passw0rd!23",
+								 "avatar":"https://cdn.example.com/avatares/mateo.png"}
+								"""))
+				.andExpect(status().isCreated())
+				.andExpect(jsonPath("$.avatar").value("https://cdn.example.com/avatares/mateo.png"));
+	}
+
+	@Test
+	void registrar_conAvatarVacio_seTrataComoSinAvatar() throws Exception {
+		when(registroService.registrar(any()))
+				.thenReturn(new RegistroResponse(1L, "mateo", "mateo@example.com", null, "password", true, Instant.now()));
+
+		mockMvc.perform(post("/api/v1/registro")
+						.contentType(MediaType.APPLICATION_JSON)
+						.content("""
+								{"username":"mateo","email":"mateo@example.com","password":"Passw0rd!23","avatar":""}
+								"""))
+				.andExpect(status().isCreated())
+				.andExpect(jsonPath("$.avatar").doesNotExist());
+	}
+
+	@Test
+	void registrar_conAvatarEnvueltoEnComillas_lasRetiraAntesDeEnviar() throws Exception {
+		when(registroService.registrar(any())).thenReturn(new RegistroResponse(1L, "mateo",
+				"mateo@example.com", "https://cdn.example.com/avatares/mateo.png", "password", true, Instant.now()));
+
+		mockMvc.perform(post("/api/v1/registro")
+						.contentType(MediaType.APPLICATION_JSON)
+						.content("""
+								{"username":"mateo","email":"mateo@example.com","password":"Passw0rd!23",
+								 "avatar":"\\"https://cdn.example.com/avatares/mateo.png\\""}
+								"""))
+				.andExpect(status().isCreated());
+
+		ArgumentCaptor<RegistroRequest> captor = ArgumentCaptor.forClass(RegistroRequest.class);
+		verify(registroService).registrar(captor.capture());
+		assertThat(captor.getValue().avatar()).isEqualTo("https://cdn.example.com/avatares/mateo.png");
+	}
+
+	@Test
+	void registrar_conAvatarDeFormatoInvalido_devuelve400() throws Exception {
+		mockMvc.perform(post("/api/v1/registro")
+						.contentType(MediaType.APPLICATION_JSON)
+						.content("""
+								{"username":"mateo","email":"mateo@example.com","password":"Passw0rd!23",
+								 "avatar":"<script>alert(1)</script>"}
+								"""))
+				.andExpect(status().isBadRequest())
+				.andExpect(jsonPath("$.errors").isArray());
 	}
 
 	@Test

@@ -30,9 +30,9 @@ class RegistroServiceTest {
 
 	@Test
 	void registrar_delegaEnElClienteGrpcYDevuelveSuRespuesta() {
-		RegistroRequest request = new RegistroRequest("mateo", "mateo@example.com", "Passw0rd!23");
+		RegistroRequest request = new RegistroRequest("mateo", "mateo@example.com", "Passw0rd!23", null);
 		RegistroResponse respuestaEsperada =
-				new RegistroResponse(1L, "mateo", "mateo@example.com", "password", true, Instant.now());
+				new RegistroResponse(1L, "mateo", "mateo@example.com", null, "password", true, Instant.now());
 		when(grpcClient.registrar(request)).thenReturn(respuestaEsperada);
 
 		RegistroResponse respuesta = service.registrar(request);

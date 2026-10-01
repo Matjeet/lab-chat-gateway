@@ -40,7 +40,8 @@ por `chat-registro`).
 `POST /api/v1/registro`
 
 ```json
-{ "username": "mateo", "email": "mateo@example.com", "password": "Passw0rd!23" }
+{ "username": "mateo", "email": "mateo@example.com", "password": "Passw0rd!23",
+  "avatar": "https://cdn.example.com/avatares/mateo.png" }
 ```
 
 - `username`: 3–50 caracteres, `[a-zA-Z0-9._-]`, único (sin distinguir mayúsculas).
@@ -48,6 +49,10 @@ por `chat-registro`).
 - `password`: 8–20 caracteres; mayúscula + minúscula + número + carácter especial, sin 4+
   repetidos seguidos. El gateway solo la transporta hasta `chat-registro` por gRPC: no la
   persiste ni la loguea en ningún punto.
+- `avatar` (**opcional**): un enlace `http(s)` o una etiqueta `<Blobatar .../>` (avatar animado),
+  ≤500 caracteres, en una sola línea. Se puede omitir o mandar `""` — el gateway lo normaliza a
+  `null` antes de validar (mismo criterio que `chat-registro`), y retira un par de comillas
+  envolventes si el valor llega así.
 
 El gateway valida el cuerpo (mismas reglas que `chat-registro`) y, si pasa, llama por gRPC a
 `RegistroGrpcService/Registrar`. Respuestas: `201` con el usuario creado · `409` genérico si
