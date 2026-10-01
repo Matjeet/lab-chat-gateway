@@ -30,6 +30,10 @@ public interface RegistroApi {
 					proveedor de identidad y persiste el perfil. El `username` y el `email`
 					deben ser unicos (no se distinguen mayusculas de minusculas); el `email`
 					se normaliza a minusculas antes de guardarlo.
+
+					`avatar` es opcional: se puede omitir o mandar `""` (equivale a "sin
+					avatar"). Solo admite un enlace `http(s)` o una etiqueta `<Blobatar .../>`
+					(avatar animado) en una sola linea; cualquier otro formato responde `400`.
 					""")
 	@ApiResponses({
 			@ApiResponse(
@@ -43,6 +47,7 @@ public interface RegistroApi {
 									  "id": 1,
 									  "username": "mateo",
 									  "email": "mateo@example.com",
+									  "avatar": "https://cdn.example.com/avatares/mateo.png",
 									  "proveedor": "password",
 									  "activo": true,
 									  "createdAt": "2026-09-08T20:53:47.441193Z"

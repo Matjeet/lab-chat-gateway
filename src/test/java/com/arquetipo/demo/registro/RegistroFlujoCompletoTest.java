@@ -101,7 +101,7 @@ class RegistroFlujoCompletoTest {
 
 		ResponseEntity<RegistroResponse> respuesta = restTemplate.postForEntity(
 				"/api/v1/registro",
-				new RegistroRequest("mateo", "mateo@example.com", "Passw0rd!23"),
+				new RegistroRequest("mateo", "mateo@example.com", "Passw0rd!23", null),
 				RegistroResponse.class);
 
 		assertThat(respuesta.getStatusCode()).isEqualTo(HttpStatus.CREATED);
@@ -119,7 +119,7 @@ class RegistroFlujoCompletoTest {
 
 		ResponseEntity<Map> respuesta = restTemplate.postForEntity(
 				"/api/v1/registro",
-				new RegistroRequest("mateo", "mateo@example.com", "Passw0rd!23"),
+				new RegistroRequest("mateo", "mateo@example.com", "Passw0rd!23", null),
 				Map.class);
 
 		assertThat(respuesta.getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
@@ -133,7 +133,7 @@ class RegistroFlujoCompletoTest {
 
 		ResponseEntity<Map> respuesta = restTemplate.postForEntity(
 				"/api/v1/registro",
-				new RegistroRequest("mateo", "mateo@example.com", "Passw0rd!23"),
+				new RegistroRequest("mateo", "mateo@example.com", "Passw0rd!23", null),
 				Map.class);
 
 		assertThat(respuesta.getStatusCode()).isEqualTo(HttpStatus.SERVICE_UNAVAILABLE);
@@ -150,7 +150,7 @@ class RegistroFlujoCompletoTest {
 
 		ResponseEntity<Map> respuesta = restTemplate.postForEntity(
 				"/api/v1/registro",
-				new RegistroRequest("m", "no-es-email", "corta"),
+				new RegistroRequest("m", "no-es-email", "corta", null),
 				Map.class);
 
 		assertThat(respuesta.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
