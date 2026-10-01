@@ -46,6 +46,7 @@ public class RegistroGrpcClient {
 				.setUsername(request.username())
 				.setEmail(request.email())
 				.setPassword(request.password())
+				.setAvatar(request.avatar() == null ? "" : request.avatar())
 				.build();
 
 		try {
@@ -54,6 +55,7 @@ public class RegistroGrpcClient {
 					respuesta.getId(),
 					respuesta.getUsername(),
 					respuesta.getEmail(),
+					respuesta.getAvatar().isEmpty() ? null : respuesta.getAvatar(),
 					respuesta.getProveedor(),
 					respuesta.getActivo(),
 					Instant.parse(respuesta.getCreatedAt()));

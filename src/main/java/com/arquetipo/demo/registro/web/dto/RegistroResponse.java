@@ -19,6 +19,10 @@ public record RegistroResponse(
 		@Schema(description = "Correo electronico (en minusculas)", example = "mateo@example.com")
 		String email,
 
+		@Schema(description = "Avatar del usuario. Null si no eligio ninguno.",
+				example = "https://cdn.example.com/avatares/mateo.png", nullable = true)
+		String avatar,
+
 		@Schema(description = "Proveedor de identidad usado en el alta", example = "password")
 		String proveedor,
 

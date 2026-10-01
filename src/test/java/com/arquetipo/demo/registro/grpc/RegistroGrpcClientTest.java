@@ -61,7 +61,7 @@ class RegistroGrpcClientTest {
 	}
 
 	private static RegistroRequest request() {
-		return new RegistroRequest("mateo", "mateo@example.com", "Passw0rd!23");
+		return new RegistroRequest("mateo", "mateo@example.com", "Passw0rd!23", null);
 	}
 
 	@Test
@@ -87,6 +87,32 @@ class RegistroGrpcClientTest {
 		assertThat(respuesta.username()).isEqualTo("mateo");
 		assertThat(respuesta.proveedor()).isEqualTo("password");
 		assertThat(respuesta.createdAt().toString()).isEqualTo("2026-09-08T20:53:47.441193Z");
+		assertThat(respuesta.avatar()).isNull();
+	}
+
+	@Test
+	void registrar_conAvatar_loEnviaYTraduceLaRespuesta() throws IOException {
+		RegistroGrpcClient client = clientePara(new RegistroGrpcServiceGrpc.RegistroGrpcServiceImplBase() {
+			@Override
+			public void registrar(RegistrarUsuarioRequest req, StreamObserver<RegistrarUsuarioResponse> obs) {
+				obs.onNext(RegistrarUsuarioResponse.newBuilder()
+						.setId(1L)
+						.setUsername(req.getUsername())
+						.setEmail(req.getEmail())
+						.setProveedor("password")
+						.setActivo(true)
+						.setCreatedAt("2026-09-08T20:53:47.441193Z")
+						.setAvatar(req.getAvatar())
+						.build());
+				obs.onCompleted();
+			}
+		});
+
+		RegistroResponse respuesta = client.registrar(
+				new RegistroRequest("mateo", "mateo@example.com", "Passw0rd!23",
+						"https://cdn.example.com/avatares/mateo.png"));
+
+		assertThat(respuesta.avatar()).isEqualTo("https://cdn.example.com/avatares/mateo.png");
 	}
 
 	@Test
