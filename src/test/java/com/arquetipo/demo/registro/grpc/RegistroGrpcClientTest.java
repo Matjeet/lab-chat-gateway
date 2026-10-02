@@ -175,6 +175,7 @@ class RegistroGrpcClientTest {
 				obs.onNext(BuscarUsuarioPorUidResponse.newBuilder()
 						.setUsername("mateo")
 						.setEmail("mateo@example.com")
+						.setAvatar("https://cdn.example.com/avatares/mateo.png")
 						.build());
 				obs.onCompleted();
 			}
@@ -184,6 +185,25 @@ class RegistroGrpcClientTest {
 
 		assertThat(respuesta.username()).isEqualTo("mateo");
 		assertThat(respuesta.email()).isEqualTo("mateo@example.com");
+		assertThat(respuesta.avatar()).isEqualTo("https://cdn.example.com/avatares/mateo.png");
+	}
+
+	@Test
+	void buscarUsuarioPorUid_sinAvatar_devuelveNull() throws IOException {
+		RegistroGrpcClient client = clientePara(new RegistroGrpcServiceGrpc.RegistroGrpcServiceImplBase() {
+			@Override
+			public void buscarUsuarioPorUid(BuscarUsuarioPorUidRequest req, StreamObserver<BuscarUsuarioPorUidResponse> obs) {
+				obs.onNext(BuscarUsuarioPorUidResponse.newBuilder()
+						.setUsername("mateo")
+						.setEmail("mateo@example.com")
+						.build());
+				obs.onCompleted();
+			}
+		});
+
+		UsuarioResponse respuesta = client.buscarUsuarioPorUid("uid-mateo");
+
+		assertThat(respuesta.avatar()).isNull();
 	}
 
 	@Test

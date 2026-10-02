@@ -242,8 +242,8 @@ curl -i -X POST http://localhost:8080/api/v1/registro \
 ### 4.2 `GET /api/v1/usuarios/{uid}` — Datos básicos de un usuario (autenticado)
 
 **El primer endpoint del gateway que exigió autenticación** (ver también §4.5 y §4.6).
-Devuelve `username`/`email` de la cuenta con ese `uid` de Firebase, solo si quien pregunta
-demuestra ser su dueño.
+Devuelve `username`/`email`/`avatar` de la cuenta con ese `uid` de Firebase, solo si quien
+pregunta demuestra ser su dueño.
 
 > **Quién verifica qué.** El gateway valida el `idToken` **él mismo**, con su propia
 > integración con Firebase Admin SDK (`common.auth`) — es el único punto del sistema que lo
@@ -272,7 +272,8 @@ demuestra ser su dueño.
 ```json
 {
   "username": "mateo",
-  "email": "mateo@example.com"
+  "email": "mateo@example.com",
+  "avatar": "https://cdn.example.com/avatares/mateo.png"
 }
 ```
 
@@ -280,6 +281,7 @@ demuestra ser su dueño.
 |---|---|---|
 | `username` | string | El `username` con el que se registró. |
 | `email` | string | El `email` (normalizado a minúsculas) con el que se registró. |
+| `avatar` | string \| null | El mismo valor ya normalizado que se guardó al registrarse (ver §4.1). `null` si no eligió ninguno. |
 
 > No expone nada más del perfil (ni `id`, ni `proveedor`, ni `createdAt`, ni el propio `uid` —
 > el cliente ya lo tiene, es el dato de entrada).
@@ -1146,6 +1148,7 @@ export interface RegistroResponse {
 export interface UsuarioResponse {
   username: string;
   email: string;
+  avatar: string | null; // null si no eligio avatar
 }
 
 // --- Disponibilidad de username (§4.6) ---
@@ -1311,6 +1314,7 @@ cómo se añade un microservicio nuevo al gateway.
 
 | Fecha | Cambio |
 |---|---|
+| 2026-09-30 | `UsuarioResponse` (§4.2) suma el campo `avatar`. `chat-registro` ahora lo incluye en `BuscarUsuarioPorUidResponse` (mismo valor ya persistido que devuelve el alta, §4.1) para que el gateway pueda resolver el perfil completo de "mi usuario" a partir del uid sin una segunda consulta. |
 | 2026-09-29 | `RegistroRequest`/`RegistroResponse` (§4.1) suman el campo opcional `avatar`. Nuevo campo en `chat-registro` (`RegistrarUsuarioRequest.avatar`, `RegistrarUsuarioResponse.avatar`): un enlace `http(s)` o una etiqueta `<Blobatar .../>`, en una sola línea. El gateway normaliza `""`/espacios a "sin avatar" y retira comillas envolventes antes de validar, mismo criterio que `chat-registro`. |
 | 2026-09-26 (2) | Se añade `PATCH /api/v1/conversaciones/solicitudes` (§4.10), enrutando a `ConversacionGrpcService/ActualizarSolicitud` (`chat-conversacion`). Acepta o rechaza la solicitud pendiente entre dos usuarios; a diferencia de §4.7, compara la identidad contra `solicitado` (quien recibió la solicitud), no contra `solicitante` — solo el receptor puede resolverla. |
 | 2026-09-26 (1) | `NotificacionResponse` (§4.8, §4.9) suma el campo `meta`. Nuevo campo en `chat-notificaciones` (`NotificacionItem.meta`, texto JSON opcional, información adicional propia de `tipo`, ej. `{"aceptada":false,"pendiente":true}` para `"solicitud"`): el gateway solo lo propaga, sin interpretarlo. |

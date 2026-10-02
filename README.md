@@ -121,7 +121,8 @@ sin llamar. Solo si todo coincide llama a `RegistroGrpcService/BuscarUsuarioPorU
 `chat-registro`, pasando el `uid` **desnudo, nunca el token**.
 
 ```json
-{ "username": "mateo", "email": "mateo@example.com" }
+{ "username": "mateo", "email": "mateo@example.com",
+  "avatar": "https://cdn.example.com/avatares/mateo.png" }
 ```
 
 Contrato completo (los códigos de error posibles, ejemplos, modelos TypeScript) en

@@ -51,6 +51,8 @@ message BuscarUsuarioPorUidRequest {
 message BuscarUsuarioPorUidResponse {
   string username = 1;
   string email = 2;
+  // Vacio si el usuario no eligio avatar. Mismo valor ya normalizado que RegistrarUsuarioResponse.avatar.
+  string avatar = 3;
 }
 
 message ExisteUsernameRequest {
