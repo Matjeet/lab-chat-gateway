@@ -82,7 +82,8 @@ public class RegistroGrpcClient {
 
 		try {
 			BuscarUsuarioPorUidResponse respuesta = stub.buscarUsuarioPorUid(peticion);
-			UsuarioResponse resultado = new UsuarioResponse(respuesta.getUsername(), respuesta.getEmail());
+			UsuarioResponse resultado = new UsuarioResponse(respuesta.getUsername(), respuesta.getEmail(),
+					respuesta.getAvatar().isEmpty() ? null : respuesta.getAvatar());
 			log.debug("<< buscarUsuarioPorUid() -> OK, username='{}'", resultado.username());
 			return resultado;
 		} catch (StatusRuntimeException ex) {

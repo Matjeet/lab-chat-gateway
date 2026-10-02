@@ -49,7 +49,7 @@ class NotificacionControllerTest {
 	@Test
 	void listaNotificaciones_tokenDelMismoUsuario_devuelve200ConLaPagina() throws Exception {
 		when(autenticacion.uidAutenticado("Bearer token-de-ana")).thenReturn("uid-ana");
-		when(registroService.obtenerUsuario("uid-ana")).thenReturn(new UsuarioResponse("ana", "ana@example.com"));
+		when(registroService.obtenerUsuario("uid-ana")).thenReturn(new UsuarioResponse("ana", "ana@example.com", null));
 		NotificacionResponse notificacion = new NotificacionResponse(
 				1L, "mateo", "solicitud", false, Instant.parse("2026-09-25T20:53:47.441193Z"),
 				"{\"aceptada\":false,\"pendiente\":true}");
@@ -69,7 +69,7 @@ class NotificacionControllerTest {
 	@Test
 	void listaNotificaciones_sinNotificaciones_devuelve200ConContentVacio() throws Exception {
 		when(autenticacion.uidAutenticado("Bearer token-de-ana")).thenReturn("uid-ana");
-		when(registroService.obtenerUsuario("uid-ana")).thenReturn(new UsuarioResponse("ana", "ana@example.com"));
+		when(registroService.obtenerUsuario("uid-ana")).thenReturn(new UsuarioResponse("ana", "ana@example.com", null));
 		when(service.listaNotificaciones("ana", 0, 20, "createdAt,desc"))
 				.thenReturn(new PageResponse<>(List.of(), 0, 20, 0, 0, true, true, true));
 
@@ -83,7 +83,7 @@ class NotificacionControllerTest {
 	void listaNotificaciones_tokenDeOtroUsuario_devuelve403SinLlamarAlServicio() throws Exception {
 		when(autenticacion.uidAutenticado("Bearer token-de-mateo")).thenReturn("uid-mateo");
 		when(registroService.obtenerUsuario("uid-mateo"))
-				.thenReturn(new UsuarioResponse("mateo", "mateo@example.com"));
+				.thenReturn(new UsuarioResponse("mateo", "mateo@example.com", null));
 
 		mockMvc.perform(get("/api/v1/notificaciones/ana")
 						.header(HttpHeaders.AUTHORIZATION, "Bearer token-de-mateo"))
@@ -109,7 +109,7 @@ class NotificacionControllerTest {
 	@Test
 	void listaNotificaciones_conversacionCaida_devuelve503() throws Exception {
 		when(autenticacion.uidAutenticado("Bearer token-de-ana")).thenReturn("uid-ana");
-		when(registroService.obtenerUsuario("uid-ana")).thenReturn(new UsuarioResponse("ana", "ana@example.com"));
+		when(registroService.obtenerUsuario("uid-ana")).thenReturn(new UsuarioResponse("ana", "ana@example.com", null));
 		when(service.listaNotificaciones("ana", 0, 20, "createdAt,desc"))
 				.thenThrow(new ServiceUnavailableException("chat-notificaciones"));
 

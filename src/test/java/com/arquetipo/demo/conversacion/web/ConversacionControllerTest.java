@@ -106,7 +106,7 @@ class ConversacionControllerTest {
 	void listaChats_tokenDelMismoUsuario_devuelve200ConLaPagina() throws Exception {
 		when(autenticacion.uidAutenticado("Bearer token-de-mateo")).thenReturn("uid-mateo");
 		when(registroService.obtenerUsuario("uid-mateo"))
-				.thenReturn(new UsuarioResponse("mateo", "mateo@example.com"));
+				.thenReturn(new UsuarioResponse("mateo", "mateo@example.com", null));
 		MensajeResponse mensaje = new MensajeResponse("1", "mateo", "ana", "Hola!",
 				Instant.parse("2026-09-18T20:53:47.441193Z"));
 		when(service.listaChats("mateo", "", 20))
@@ -125,7 +125,7 @@ class ConversacionControllerTest {
 	void listaChats_sinChats_devuelve200ConContentVacioYSinMasPaginas() throws Exception {
 		when(autenticacion.uidAutenticado("Bearer token-de-mateo")).thenReturn("uid-mateo");
 		when(registroService.obtenerUsuario("uid-mateo"))
-				.thenReturn(new UsuarioResponse("mateo", "mateo@example.com"));
+				.thenReturn(new UsuarioResponse("mateo", "mateo@example.com", null));
 		when(service.listaChats("mateo", "", 20))
 				.thenReturn(new CursorPage<>(List.of(), "", false));
 
@@ -140,7 +140,7 @@ class ConversacionControllerTest {
 	void listaChats_conCursor_loReenviaTalCual() throws Exception {
 		when(autenticacion.uidAutenticado("Bearer token-de-mateo")).thenReturn("uid-mateo");
 		when(registroService.obtenerUsuario("uid-mateo"))
-				.thenReturn(new UsuarioResponse("mateo", "mateo@example.com"));
+				.thenReturn(new UsuarioResponse("mateo", "mateo@example.com", null));
 		when(service.listaChats("mateo", "cursor-recibido", 50))
 				.thenReturn(new CursorPage<>(List.of(), "", false));
 
@@ -155,7 +155,7 @@ class ConversacionControllerTest {
 	void listaChats_cursorInvalido_devuelve400() throws Exception {
 		when(autenticacion.uidAutenticado("Bearer token-de-mateo")).thenReturn("uid-mateo");
 		when(registroService.obtenerUsuario("uid-mateo"))
-				.thenReturn(new UsuarioResponse("mateo", "mateo@example.com"));
+				.thenReturn(new UsuarioResponse("mateo", "mateo@example.com", null));
 		when(service.listaChats("mateo", "cursor-invalido", 20))
 				.thenThrow(new ValidationException("El cursor de paginacion no es valido", List.of()));
 
@@ -170,7 +170,7 @@ class ConversacionControllerTest {
 	void listaChats_conversacionCaida_devuelve503() throws Exception {
 		when(autenticacion.uidAutenticado("Bearer token-de-mateo")).thenReturn("uid-mateo");
 		when(registroService.obtenerUsuario("uid-mateo"))
-				.thenReturn(new UsuarioResponse("mateo", "mateo@example.com"));
+				.thenReturn(new UsuarioResponse("mateo", "mateo@example.com", null));
 		when(service.listaChats("mateo", "", 20))
 				.thenThrow(new ServiceUnavailableException("chat-conversacion"));
 
@@ -184,7 +184,7 @@ class ConversacionControllerTest {
 	void listaChats_tokenDeOtroUsuario_devuelve403SinLlamarAlServicioDeConversacion() throws Exception {
 		when(autenticacion.uidAutenticado("Bearer token-de-ana")).thenReturn("uid-ana");
 		when(registroService.obtenerUsuario("uid-ana"))
-				.thenReturn(new UsuarioResponse("ana", "ana@example.com"));
+				.thenReturn(new UsuarioResponse("ana", "ana@example.com", null));
 
 		mockMvc.perform(get("/api/v1/conversaciones/mateo/chats")
 						.header(HttpHeaders.AUTHORIZATION, "Bearer token-de-ana"))
@@ -236,7 +236,7 @@ class ConversacionControllerTest {
 	void crearSolicitud_tokenDelSolicitante_devuelve201() throws Exception {
 		when(autenticacion.uidAutenticado("Bearer token-de-mateo")).thenReturn("uid-mateo");
 		when(registroService.obtenerUsuario("uid-mateo"))
-				.thenReturn(new UsuarioResponse("mateo", "mateo@example.com"));
+				.thenReturn(new UsuarioResponse("mateo", "mateo@example.com", null));
 		when(service.crearSolicitud("mateo", "ana")).thenReturn(new SolicitudChatResponse(
 				"1", "mateo", "ana", false, Instant.parse("2026-09-23T20:53:47.441193Z"), true));
 
@@ -258,7 +258,7 @@ class ConversacionControllerTest {
 	void crearSolicitud_cuerpoInvalido_devuelve400ConErroresSinLlamarANingunServicio() throws Exception {
 		when(autenticacion.uidAutenticado("Bearer token-de-mateo")).thenReturn("uid-mateo");
 		when(registroService.obtenerUsuario("uid-mateo"))
-				.thenReturn(new UsuarioResponse("mateo", "mateo@example.com"));
+				.thenReturn(new UsuarioResponse("mateo", "mateo@example.com", null));
 
 		mockMvc.perform(post("/api/v1/conversaciones/solicitudes")
 						.header(HttpHeaders.AUTHORIZATION, "Bearer token-de-mateo")
@@ -276,7 +276,7 @@ class ConversacionControllerTest {
 	void crearSolicitud_tokenDeOtroUsuario_devuelve403SinLlamarAlServicioDeConversacion() throws Exception {
 		when(autenticacion.uidAutenticado("Bearer token-de-ana")).thenReturn("uid-ana");
 		when(registroService.obtenerUsuario("uid-ana"))
-				.thenReturn(new UsuarioResponse("ana", "ana@example.com"));
+				.thenReturn(new UsuarioResponse("ana", "ana@example.com", null));
 
 		mockMvc.perform(post("/api/v1/conversaciones/solicitudes")
 						.header(HttpHeaders.AUTHORIZATION, "Bearer token-de-ana")
@@ -310,7 +310,7 @@ class ConversacionControllerTest {
 	void crearSolicitud_usuarioInexistenteEnRegistro_devuelve404() throws Exception {
 		when(autenticacion.uidAutenticado("Bearer token-de-mateo")).thenReturn("uid-mateo");
 		when(registroService.obtenerUsuario("uid-mateo"))
-				.thenReturn(new UsuarioResponse("mateo", "mateo@example.com"));
+				.thenReturn(new UsuarioResponse("mateo", "mateo@example.com", null));
 		when(service.crearSolicitud("mateo", "inexistente"))
 				.thenThrow(new ResourceNotFoundException("No existe el usuario solicitado 'inexistente'"));
 
@@ -327,7 +327,7 @@ class ConversacionControllerTest {
 	void crearSolicitud_solicitudDuplicada_devuelve409() throws Exception {
 		when(autenticacion.uidAutenticado("Bearer token-de-mateo")).thenReturn("uid-mateo");
 		when(registroService.obtenerUsuario("uid-mateo"))
-				.thenReturn(new UsuarioResponse("mateo", "mateo@example.com"));
+				.thenReturn(new UsuarioResponse("mateo", "mateo@example.com", null));
 		when(service.crearSolicitud("mateo", "ana"))
 				.thenThrow(new DuplicateResourceException("Ya existe una solicitud de chat pendiente entre 'mateo' y 'ana'"));
 
@@ -344,7 +344,7 @@ class ConversacionControllerTest {
 	void crearSolicitud_conversacionCaida_devuelve503() throws Exception {
 		when(autenticacion.uidAutenticado("Bearer token-de-mateo")).thenReturn("uid-mateo");
 		when(registroService.obtenerUsuario("uid-mateo"))
-				.thenReturn(new UsuarioResponse("mateo", "mateo@example.com"));
+				.thenReturn(new UsuarioResponse("mateo", "mateo@example.com", null));
 		when(service.crearSolicitud("mateo", "ana"))
 				.thenThrow(new ServiceUnavailableException("chat-conversacion"));
 
@@ -362,7 +362,7 @@ class ConversacionControllerTest {
 	void actualizarSolicitud_tokenDelSolicitado_devuelve200() throws Exception {
 		when(autenticacion.uidAutenticado("Bearer token-de-ana")).thenReturn("uid-ana");
 		when(registroService.obtenerUsuario("uid-ana"))
-				.thenReturn(new UsuarioResponse("ana", "ana@example.com"));
+				.thenReturn(new UsuarioResponse("ana", "ana@example.com", null));
 		when(service.actualizarSolicitud("mateo", "ana", true)).thenReturn(new SolicitudChatResponse(
 				"1", "mateo", "ana", true, Instant.parse("2026-09-23T20:53:47.441193Z"), false));
 
@@ -382,7 +382,7 @@ class ConversacionControllerTest {
 	void actualizarSolicitud_cuerpoInvalido_devuelve400ConErroresSinLlamarANingunServicio() throws Exception {
 		when(autenticacion.uidAutenticado("Bearer token-de-ana")).thenReturn("uid-ana");
 		when(registroService.obtenerUsuario("uid-ana"))
-				.thenReturn(new UsuarioResponse("ana", "ana@example.com"));
+				.thenReturn(new UsuarioResponse("ana", "ana@example.com", null));
 
 		mockMvc.perform(patch("/api/v1/conversaciones/solicitudes")
 						.header(HttpHeaders.AUTHORIZATION, "Bearer token-de-ana")
@@ -400,7 +400,7 @@ class ConversacionControllerTest {
 	void actualizarSolicitud_tokenDelSolicitante_devuelve403SinLlamarAlServicioDeConversacion() throws Exception {
 		when(autenticacion.uidAutenticado("Bearer token-de-mateo")).thenReturn("uid-mateo");
 		when(registroService.obtenerUsuario("uid-mateo"))
-				.thenReturn(new UsuarioResponse("mateo", "mateo@example.com"));
+				.thenReturn(new UsuarioResponse("mateo", "mateo@example.com", null));
 
 		mockMvc.perform(patch("/api/v1/conversaciones/solicitudes")
 						.header(HttpHeaders.AUTHORIZATION, "Bearer token-de-mateo")
@@ -434,7 +434,7 @@ class ConversacionControllerTest {
 	void actualizarSolicitud_sinSolicitudPendiente_devuelve404() throws Exception {
 		when(autenticacion.uidAutenticado("Bearer token-de-ana")).thenReturn("uid-ana");
 		when(registroService.obtenerUsuario("uid-ana"))
-				.thenReturn(new UsuarioResponse("ana", "ana@example.com"));
+				.thenReturn(new UsuarioResponse("ana", "ana@example.com", null));
 		when(service.actualizarSolicitud("mateo", "ana", false))
 				.thenThrow(new ResourceNotFoundException(
 						"No existe una solicitud de chat pendiente entre 'mateo' y 'ana'"));
@@ -452,7 +452,7 @@ class ConversacionControllerTest {
 	void actualizarSolicitud_conversacionCaida_devuelve503() throws Exception {
 		when(autenticacion.uidAutenticado("Bearer token-de-ana")).thenReturn("uid-ana");
 		when(registroService.obtenerUsuario("uid-ana"))
-				.thenReturn(new UsuarioResponse("ana", "ana@example.com"));
+				.thenReturn(new UsuarioResponse("ana", "ana@example.com", null));
 		when(service.actualizarSolicitud("mateo", "ana", true))
 				.thenThrow(new ServiceUnavailableException("chat-conversacion"));
 

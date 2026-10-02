@@ -44,13 +44,26 @@ class UsuarioControllerTest {
 	void obtenerUsuario_tokenDelMismoUsuario_devuelve200ConLosDatos() throws Exception {
 		when(autenticacion.uidAutenticado("Bearer token-de-mateo")).thenReturn("uid-mateo");
 		when(registroService.obtenerUsuario("uid-mateo"))
-				.thenReturn(new UsuarioResponse("mateo", "mateo@example.com"));
+				.thenReturn(new UsuarioResponse("mateo", "mateo@example.com", null));
 
 		mockMvc.perform(get("/api/v1/usuarios/uid-mateo")
 						.header(HttpHeaders.AUTHORIZATION, "Bearer token-de-mateo"))
 				.andExpect(status().isOk())
 				.andExpect(jsonPath("$.username").value("mateo"))
-				.andExpect(jsonPath("$.email").value("mateo@example.com"));
+				.andExpect(jsonPath("$.email").value("mateo@example.com"))
+				.andExpect(jsonPath("$.avatar").doesNotExist());
+	}
+
+	@Test
+	void obtenerUsuario_conAvatar_loIncluyeEnLaRespuesta() throws Exception {
+		when(autenticacion.uidAutenticado("Bearer token-de-mateo")).thenReturn("uid-mateo");
+		when(registroService.obtenerUsuario("uid-mateo")).thenReturn(new UsuarioResponse(
+				"mateo", "mateo@example.com", "https://cdn.example.com/avatares/mateo.png"));
+
+		mockMvc.perform(get("/api/v1/usuarios/uid-mateo")
+						.header(HttpHeaders.AUTHORIZATION, "Bearer token-de-mateo"))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.avatar").value("https://cdn.example.com/avatares/mateo.png"));
 	}
 
 	@Test

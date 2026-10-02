@@ -48,7 +48,8 @@ public interface UsuarioApi {
 							examples = @ExampleObject(value = """
 									{
 									  "username": "mateo",
-									  "email": "mateo@example.com"
+									  "email": "mateo@example.com",
+									  "avatar": "https://cdn.example.com/avatares/mateo.png"
 									}
 									"""))),
 			@ApiResponse(
