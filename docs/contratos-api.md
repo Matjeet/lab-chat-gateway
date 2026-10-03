@@ -520,6 +520,7 @@ lugar donde se expone por REST.
   "content": [
     {
       "otroUsuario": "ana",
+      "avatar": "https://cdn.example.com/avatares/ana.png",
       "ultimoMensaje": {
         "id": "66f1c2a8b4c9a12345678901",
         "remitente": "mateo",
@@ -537,6 +538,14 @@ lugar donde se expone por REST.
 Sin chats: `200` con `content: []`, `hasMore: false` — nunca `404`. **`nextCursor` viene
 vacío cuando `hasMore` es `false`**: no lo mandes de vuelta en ese caso, no hay garantía de
 que siga siendo válido.
+
+**`avatar`** es el avatar de `otroUsuario` (la otra persona, no el usuario que pregunta), en
+el mismo formato que devuelve `GET /api/v1/usuarios/{uid}` (§4.2): un enlace `http(s)` o una
+etiqueta `<Blobatar .../>` que el front renderiza tal cual. Es `null` si esa persona no eligió
+ninguno **o si `chat-conversacion` todavía no tiene su perfil guardado** (lo recibe de
+`chat-registro` por RabbitMQ al registrarse; un usuario dado de alta antes de que existiera
+esa integración no tiene perfil hasta que se vuelva a procesar su alta). El front debe tratar
+`null` como "sin avatar" y caer a su avatar automático de siempre.
 
 #### Respuesta `400 Bad Request` — cursor inválido
 
@@ -1184,6 +1193,7 @@ export interface PageResponse<T> {
 // --- Lista de chats (§4.5) ---
 export interface ChatResumen {
   otroUsuario: string;
+  avatar: string | null; // avatar de otroUsuario; null si no eligio uno o aun no hay perfil
   ultimoMensaje: MensajeResponse;
 }
 

@@ -248,12 +248,24 @@ class ConversacionGrpcClientTest {
 				responseObserver.onNext(ListaChatsResponse.newBuilder()
 						.addContent(ChatResumen.newBuilder()
 								.setOtroUsuario("ana")
+								.setAvatar("https://cdn.example.com/ana.png")
 								.setUltimoMensaje(MensajeEntregado.newBuilder()
 										.setId("1")
 										.setRemitente(request.getUsuario())
 										.setDestinatario("ana")
 										.setContenido("Hola!")
 										.setEnviadoEn("2026-09-18T20:53:47.441193Z")
+										.build())
+								.build())
+						// Sin avatar (campo ausente en el proto): debe llegar como null, no como "".
+						.addContent(ChatResumen.newBuilder()
+								.setOtroUsuario("beto")
+								.setUltimoMensaje(MensajeEntregado.newBuilder()
+										.setId("2")
+										.setRemitente("beto")
+										.setDestinatario(request.getUsuario())
+										.setContenido("Buenas")
+										.setEnviadoEn("2026-09-18T20:50:00Z")
 										.build())
 								.build())
 						.setNextCursor("cursor-siguiente")
@@ -266,9 +278,12 @@ class ConversacionGrpcClientTest {
 		CursorPage<com.arquetipo.demo.conversacion.web.dto.ChatResumen> pagina =
 				client.listaChats("mateo", "", 20);
 
-		assertThat(pagina.content()).hasSize(1);
+		assertThat(pagina.content()).hasSize(2);
 		assertThat(pagina.content().get(0).otroUsuario()).isEqualTo("ana");
+		assertThat(pagina.content().get(0).avatar()).isEqualTo("https://cdn.example.com/ana.png");
 		assertThat(pagina.content().get(0).ultimoMensaje().remitente()).isEqualTo("mateo");
+		assertThat(pagina.content().get(1).otroUsuario()).isEqualTo("beto");
+		assertThat(pagina.content().get(1).avatar()).isNull();
 		assertThat(pagina.nextCursor()).isEqualTo("cursor-siguiente");
 		assertThat(pagina.hasMore()).isTrue();
 	}
