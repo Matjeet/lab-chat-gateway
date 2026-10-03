@@ -520,6 +520,7 @@ lugar donde se expone por REST.
   "content": [
     {
       "otroUsuario": "ana",
+      "avatar": "https://cdn.example.com/avatares/ana.png",
       "ultimoMensaje": {
         "id": "66f1c2a8b4c9a12345678901",
         "remitente": "mateo",
@@ -537,6 +538,14 @@ lugar donde se expone por REST.
 Sin chats: `200` con `content: []`, `hasMore: false` — nunca `404`. **`nextCursor` viene
 vacío cuando `hasMore` es `false`**: no lo mandes de vuelta en ese caso, no hay garantía de
 que siga siendo válido.
+
+**`avatar`** es el avatar de `otroUsuario` (la otra persona, no el usuario que pregunta), en
+el mismo formato que devuelve `GET /api/v1/usuarios/{uid}` (§4.2): un enlace `http(s)` o una
+etiqueta `<Blobatar .../>` que el front renderiza tal cual. Es `null` si esa persona no eligió
+ninguno **o si `chat-conversacion` todavía no tiene su perfil guardado** (lo recibe de
+`chat-registro` por RabbitMQ al registrarse; un usuario dado de alta antes de que existiera
+esa integración no tiene perfil hasta que se vuelva a procesar su alta). El front debe tratar
+`null` como "sin avatar" y caer a su avatar automático de siempre.
 
 #### Respuesta `400 Bad Request` — cursor inválido
 
@@ -1184,6 +1193,7 @@ export interface PageResponse<T> {
 // --- Lista de chats (§4.5) ---
 export interface ChatResumen {
   otroUsuario: string;
+  avatar: string | null; // avatar de otroUsuario; null si no eligio uno o aun no hay perfil
   ultimoMensaje: MensajeResponse;
 }
 
@@ -1314,6 +1324,7 @@ cómo se añade un microservicio nuevo al gateway.
 
 | Fecha | Cambio |
 |---|---|
+| 2026-10-03 | `ChatResumen` (§4.5) suma el campo `avatar`: el avatar de `otroUsuario`, que `chat-conversacion` resuelve desde su colección `perfil` (alimentada por `chat-registro` vía RabbitMQ) y manda como `optional string` en cada `ChatResumen` de `ListaChats`. El gateway lo reexpone como `string \| null` (`null` si no eligió avatar o si aún no hay perfil guardado). |
 | 2026-09-30 | `UsuarioResponse` (§4.2) suma el campo `avatar`. `chat-registro` ahora lo incluye en `BuscarUsuarioPorUidResponse` (mismo valor ya persistido que devuelve el alta, §4.1) para que el gateway pueda resolver el perfil completo de "mi usuario" a partir del uid sin una segunda consulta. |
 | 2026-09-29 | `RegistroRequest`/`RegistroResponse` (§4.1) suman el campo opcional `avatar`. Nuevo campo en `chat-registro` (`RegistrarUsuarioRequest.avatar`, `RegistrarUsuarioResponse.avatar`): un enlace `http(s)` o una etiqueta `<Blobatar .../>`, en una sola línea. El gateway normaliza `""`/espacios a "sin avatar" y retira comillas envolventes antes de validar, mismo criterio que `chat-registro`. |
 | 2026-09-26 (2) | Se añade `PATCH /api/v1/conversaciones/solicitudes` (§4.10), enrutando a `ConversacionGrpcService/ActualizarSolicitud` (`chat-conversacion`). Acepta o rechaza la solicitud pendiente entre dos usuarios; a diferencia de §4.7, compara la identidad contra `solicitado` (quien recibió la solicitud), no contra `solicitante` — solo el receptor puede resolverla. |
