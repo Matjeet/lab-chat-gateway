@@ -51,6 +51,11 @@ message NotificacionItem {
   // interpreta, solo se propaga. Ausente (no "") cuando la notificacion no tiene meta -- usar
   // has_meta(), no asumir "" como "sin meta".
   optional string meta = 6;
+  // Avatar de "remitente", tal como lo guarda chat-registro: un enlace http(s) o una etiqueta
+  // <Blobatar .../> que el cliente renderiza tal cual. Ausente (no "") si no hay remitente, si no
+  // eligio avatar, o si la notificacion no es una solicitud nueva (solo ahi lo manda
+  // chat-conversacion) -- usar has_avatar_remitente(), no asumir "" como "sin avatar".
+  optional string avatar_remitente = 7;
 }
 
 message ActualizarLeidaRequest {

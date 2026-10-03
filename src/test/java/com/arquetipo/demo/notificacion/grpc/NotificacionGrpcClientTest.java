@@ -72,6 +72,7 @@ class NotificacionGrpcClientTest {
 								.setLeida(false)
 								.setCreatedAt("2026-09-25T20:53:47.441193Z")
 								.setMeta("{\"aceptada\":false,\"pendiente\":true}")
+								.setAvatarRemitente("https://cdn.example.com/avatares/mateo.png")
 								.build())
 						.setPage(0)
 						.setSize(20)
@@ -93,6 +94,7 @@ class NotificacionGrpcClientTest {
 		assertThat(pagina.content().get(0).tipo()).isEqualTo("solicitud");
 		assertThat(pagina.content().get(0).leida()).isFalse();
 		assertThat(pagina.content().get(0).meta()).isEqualTo("{\"aceptada\":false,\"pendiente\":true}");
+		assertThat(pagina.content().get(0).avatarRemitente()).isEqualTo("https://cdn.example.com/avatares/mateo.png");
 		assertThat(pagina.totalElements()).isEqualTo(1);
 	}
 
@@ -125,6 +127,7 @@ class NotificacionGrpcClientTest {
 
 		assertThat(pagina.content().get(0).remitente()).isNull();
 		assertThat(pagina.content().get(0).meta()).isNull();
+		assertThat(pagina.content().get(0).avatarRemitente()).isNull();
 	}
 
 	@Test
@@ -153,6 +156,7 @@ class NotificacionGrpcClientTest {
 						.setLeida(request.getLeida())
 						.setCreatedAt("2026-09-25T20:53:47.441193Z")
 						.setMeta("{\"aceptada\":false,\"pendiente\":true}")
+						.setAvatarRemitente("https://cdn.example.com/avatares/mateo.png")
 						.build());
 				responseObserver.onCompleted();
 			}
@@ -164,6 +168,7 @@ class NotificacionGrpcClientTest {
 		assertThat(respuesta.leida()).isTrue();
 		assertThat(respuesta.createdAt()).isEqualTo(Instant.parse("2026-09-25T20:53:47.441193Z"));
 		assertThat(respuesta.meta()).isEqualTo("{\"aceptada\":false,\"pendiente\":true}");
+		assertThat(respuesta.avatarRemitente()).isEqualTo("https://cdn.example.com/avatares/mateo.png");
 	}
 
 	@Test
