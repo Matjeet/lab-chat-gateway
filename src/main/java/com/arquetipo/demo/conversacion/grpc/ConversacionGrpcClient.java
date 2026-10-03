@@ -219,7 +219,10 @@ public class ConversacionGrpcClient {
 	}
 
 	private ChatResumen aChatResumen(com.arquetipo.demo.conversacion.grpc.ChatResumen resumen) {
-		return new ChatResumen(resumen.getOtroUsuario(), aMensajeResponse(resumen.getUltimoMensaje()));
+		return new ChatResumen(
+				resumen.getOtroUsuario(),
+				resumen.hasAvatar() ? resumen.getAvatar() : null,
+				aMensajeResponse(resumen.getUltimoMensaje()));
 	}
 
 	private MensajeResponse aMensajeResponse(MensajeEntregado entregado) {

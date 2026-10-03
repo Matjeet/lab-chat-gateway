@@ -110,12 +110,13 @@ class ConversacionControllerTest {
 		MensajeResponse mensaje = new MensajeResponse("1", "mateo", "ana", "Hola!",
 				Instant.parse("2026-09-18T20:53:47.441193Z"));
 		when(service.listaChats("mateo", "", 20))
-				.thenReturn(new CursorPage<>(List.of(new ChatResumen("ana", mensaje)), "cursor-siguiente", true));
+				.thenReturn(new CursorPage<>(List.of(new ChatResumen("ana", "https://cdn.example.com/ana.png", mensaje)), "cursor-siguiente", true));
 
 		mockMvc.perform(get("/api/v1/conversaciones/mateo/chats")
 						.header(HttpHeaders.AUTHORIZATION, "Bearer token-de-mateo"))
 				.andExpect(status().isOk())
 				.andExpect(jsonPath("$.content[0].otroUsuario").value("ana"))
+				.andExpect(jsonPath("$.content[0].avatar").value("https://cdn.example.com/ana.png"))
 				.andExpect(jsonPath("$.content[0].ultimoMensaje.contenido").value("Hola!"))
 				.andExpect(jsonPath("$.nextCursor").value("cursor-siguiente"))
 				.andExpect(jsonPath("$.hasMore").value(true));
