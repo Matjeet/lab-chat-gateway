@@ -82,7 +82,8 @@ public class NotificacionGrpcClient {
 				item.getTipo(),
 				item.getLeida(),
 				Instant.parse(item.getCreatedAt()),
-				item.hasMeta() ? item.getMeta() : null);
+				item.hasMeta() ? item.getMeta() : null,
+				item.hasAvatarRemitente() ? item.getAvatarRemitente() : null);
 	}
 
 	private RuntimeException traducir(StatusRuntimeException ex) {

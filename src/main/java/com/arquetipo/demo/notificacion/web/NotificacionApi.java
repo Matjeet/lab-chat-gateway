@@ -53,7 +53,8 @@ public interface NotificacionApi {
 									      "tipo": "solicitud",
 									      "leida": false,
 									      "createdAt": "2026-09-25T20:53:47.441193Z",
-									      "meta": "{\\"aceptada\\":false,\\"pendiente\\":true}"
+									      "meta": "{\\"aceptada\\":false,\\"pendiente\\":true}",
+									      "avatarRemitente": "https://cdn.example.com/avatares/mateo.png"
 									    }
 									  ],
 									  "page": 0,
@@ -117,7 +118,8 @@ public interface NotificacionApi {
 									  "tipo": "solicitud",
 									  "leida": true,
 									  "createdAt": "2026-09-25T20:53:47.441193Z",
-									  "meta": "{\\"aceptada\\":false,\\"pendiente\\":true}"
+									  "meta": "{\\"aceptada\\":false,\\"pendiente\\":true}",
+									  "avatarRemitente": "https://cdn.example.com/avatares/mateo.png"
 									}
 									"""))),
 			@ApiResponse(

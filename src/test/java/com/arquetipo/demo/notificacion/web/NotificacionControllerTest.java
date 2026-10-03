@@ -52,7 +52,7 @@ class NotificacionControllerTest {
 		when(registroService.obtenerUsuario("uid-ana")).thenReturn(new UsuarioResponse("ana", "ana@example.com", null));
 		NotificacionResponse notificacion = new NotificacionResponse(
 				1L, "mateo", "solicitud", false, Instant.parse("2026-09-25T20:53:47.441193Z"),
-				"{\"aceptada\":false,\"pendiente\":true}");
+				"{\"aceptada\":false,\"pendiente\":true}", "https://cdn.example.com/avatares/mateo.png");
 		when(service.listaNotificaciones("ana", 0, 20, "createdAt,desc"))
 				.thenReturn(new PageResponse<>(List.of(notificacion), 0, 20, 1, 1, true, true, false));
 
@@ -63,7 +63,8 @@ class NotificacionControllerTest {
 				.andExpect(jsonPath("$.content[0].remitente").value("mateo"))
 				.andExpect(jsonPath("$.content[0].tipo").value("solicitud"))
 				.andExpect(jsonPath("$.content[0].leida").value(false))
-				.andExpect(jsonPath("$.content[0].meta").value("{\"aceptada\":false,\"pendiente\":true}"));
+				.andExpect(jsonPath("$.content[0].meta").value("{\"aceptada\":false,\"pendiente\":true}"))
+				.andExpect(jsonPath("$.content[0].avatarRemitente").value("https://cdn.example.com/avatares/mateo.png"));
 	}
 
 	@Test
@@ -124,7 +125,7 @@ class NotificacionControllerTest {
 		when(autenticacion.uidAutenticado("Bearer token-de-ana")).thenReturn("uid-ana");
 		when(service.actualizarLeida(1L, true)).thenReturn(new NotificacionResponse(
 				1L, "mateo", "solicitud", true, Instant.parse("2026-09-25T20:53:47.441193Z"),
-				"{\"aceptada\":false,\"pendiente\":true}"));
+				"{\"aceptada\":false,\"pendiente\":true}", "https://cdn.example.com/avatares/mateo.png"));
 
 		mockMvc.perform(patch("/api/v1/notificaciones/1")
 						.header(HttpHeaders.AUTHORIZATION, "Bearer token-de-ana")
@@ -134,7 +135,8 @@ class NotificacionControllerTest {
 								"""))
 				.andExpect(status().isOk())
 				.andExpect(jsonPath("$.id").value(1))
-				.andExpect(jsonPath("$.leida").value(true));
+				.andExpect(jsonPath("$.leida").value(true))
+				.andExpect(jsonPath("$.avatarRemitente").value("https://cdn.example.com/avatares/mateo.png"));
 	}
 
 	@Test

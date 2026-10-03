@@ -155,12 +155,15 @@ compara contra `receptor` — `403` si no coincide.
 
 ```json
 { "content": [{ "id": 1, "remitente": "mateo", "tipo": "solicitud", "leida": false,
-  "createdAt": "2026-09-25T20:53:47.441193Z", "meta": "{\"aceptada\":false,\"pendiente\":true}" }],
+  "createdAt": "2026-09-25T20:53:47.441193Z", "meta": "{\"aceptada\":false,\"pendiente\":true}",
+  "avatarRemitente": "https://cdn.example.com/avatares/mateo.png" }],
   "page": 0, "size": 20, "totalElements": 1, "totalPages": 1, "first": true, "last": true, "empty": false }
 ```
 
 `meta` es texto JSON tal cual lo persistió `chat-notificaciones` (información adicional propia
-de `tipo`, sin interpretar) — `null` si la notificación no tiene meta.
+de `tipo`, sin interpretar) — `null` si la notificación no tiene meta. `avatarRemitente` es el
+avatar de `remitente` (mismo formato que `avatar` en el alta): `null` si no hay remitente, si no
+eligió uno, o si la notificación no es una solicitud nueva.
 
 `PATCH /api/v1/notificaciones/{id}` — marca una notificación como leída o no leída, cuerpo
 `{ "uid": "...", "leida": true }`, enrutado a `NotificacionGrpcService/ActualizarLeida`.
