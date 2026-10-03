@@ -833,7 +833,8 @@ lugar donde se expone por REST.
       "tipo": "solicitud",
       "leida": false,
       "createdAt": "2026-09-25T20:53:47.441193Z",
-      "meta": "{\"aceptada\":false,\"pendiente\":true}"
+      "meta": "{\"aceptada\":false,\"pendiente\":true}",
+      "avatarRemitente": "https://cdn.example.com/avatares/mateo.png"
     }
   ],
   "page": 0,
@@ -854,6 +855,7 @@ lugar donde se expone por REST.
 | `leida` | boolean | Si `receptor` ya la marcó como leída. |
 | `createdAt` | string (ISO-8601) | Instante de creación en UTC. |
 | `meta` | string \| null | Información adicional propia de `tipo`, como texto JSON tal cual lo persistió `chat-notificaciones` (ej. para `"solicitud"`, `{"aceptada":false,"pendiente":true}`), sin interpretar. `null` si la notificación no tiene meta. |
+| `avatarRemitente` | string \| null | Avatar de `remitente`, en el mismo formato que `avatar` en §4.1/§4.2: un enlace `http(s)` o una etiqueta `<Blobatar .../>` que el cliente renderiza tal cual. `null` si no hay remitente, si no eligió avatar, si la notificación no es una solicitud nueva (solo ahí lo manda `chat-conversacion`) o si es anterior a este campo. |
 
 > No incluye `receptor`: es implícito, es quien la pidió (ya coincide con el `{receptor}` de
 > la URL, verificado arriba).
@@ -926,7 +928,8 @@ Cuerpo:
   "tipo": "solicitud",
   "leida": true,
   "createdAt": "2026-09-25T20:53:47.441193Z",
-  "meta": "{\"aceptada\":false,\"pendiente\":true}"
+  "meta": "{\"aceptada\":false,\"pendiente\":true}",
+  "avatarRemitente": "https://cdn.example.com/avatares/mateo.png"
 }
 ```
 
@@ -1232,6 +1235,7 @@ export interface NotificacionResponse {
   leida: boolean;
   createdAt: string;         // ISO-8601 UTC
   meta: string | null;       // JSON tal cual, sin interpretar; null si no tiene meta
+  avatarRemitente: string | null; // avatar de remitente; null si no hay remitente, no eligio uno o no es una solicitud nueva
 }
 
 export interface MarcarLeidaRequest {
@@ -1323,6 +1327,7 @@ cómo se añade un microservicio nuevo al gateway.
 ## 9. Control de versiones de este documento
 
 | Fecha | Cambio |
+| 2026-10-03 (2) | `NotificacionResponse` (§4.8, §4.9) suma el campo `avatarRemitente`: el avatar de `remitente`, que `chat-notificaciones` guarda en la notificación (columna `avatar_remitente`) a partir del mensaje de RabbitMQ y manda como `optional string` en `NotificacionItem`. El gateway lo reexpone como `string \| null` (`null` si no hay remitente, si no eligió avatar, o si la notificación no es una solicitud nueva — solo ahí lo manda `chat-conversacion`; tampoco existe para notificaciones anteriores a este campo). |
 |---|---|
 | 2026-10-03 | `ChatResumen` (§4.5) suma el campo `avatar`: el avatar de `otroUsuario`, que `chat-conversacion` resuelve desde su colección `perfil` (alimentada por `chat-registro` vía RabbitMQ) y manda como `optional string` en cada `ChatResumen` de `ListaChats`. El gateway lo reexpone como `string \| null` (`null` si no eligió avatar o si aún no hay perfil guardado). |
 | 2026-09-30 | `UsuarioResponse` (§4.2) suma el campo `avatar`. `chat-registro` ahora lo incluye en `BuscarUsuarioPorUidResponse` (mismo valor ya persistido que devuelve el alta, §4.1) para que el gateway pueda resolver el perfil completo de "mi usuario" a partir del uid sin una segunda consulta. |

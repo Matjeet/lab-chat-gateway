@@ -31,6 +31,12 @@ public record NotificacionResponse(
 				+ "persisto en chat-notificaciones (sin interpretar). Ausente (null) si la "
 				+ "notificacion no tiene meta.", example = "{\"aceptada\":false,\"pendiente\":true}",
 				nullable = true)
-		String meta
+		String meta,
+
+		@Schema(description = "Avatar de remitente (enlace http(s) o etiqueta <Blobatar .../>, tal cual "
+				+ "lo guardo el registro). Null si no hay remitente, si no eligio avatar, o si la "
+				+ "notificacion no es una solicitud nueva.",
+				example = "https://cdn.example.com/avatares/mateo.png", nullable = true)
+		String avatarRemitente
 ) {
 }
