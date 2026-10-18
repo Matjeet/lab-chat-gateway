@@ -1,5 +1,7 @@
 package com.arquetipo.demo.common.exception;
 
+import com.arquetipo.demo.common.Constantes.Mensajes;
+
 /**
  * Se lanza cuando el gateway no puede alcanzar el microservicio interno al que debia
  * enrutar la peticion (gRPC {@code UNAVAILABLE}: servicio caido, puerto equivocado, etc.).
@@ -8,6 +10,6 @@ package com.arquetipo.demo.common.exception;
 public class ServiceUnavailableException extends RuntimeException {
 
 	public ServiceUnavailableException(String servicio) {
-		super("El servicio '%s' no esta disponible".formatted(servicio));
+		super(Mensajes.FORMATO_SERVICIO_NO_DISPONIBLE.formatted(servicio));
 	}
 }

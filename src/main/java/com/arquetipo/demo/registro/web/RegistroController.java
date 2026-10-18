@@ -1,5 +1,6 @@
 package com.arquetipo.demo.registro.web;
 
+import com.arquetipo.demo.common.Constantes.Rutas;
 import com.arquetipo.demo.registro.service.RegistroService;
 import com.arquetipo.demo.registro.web.dto.RegistroRequest;
 import com.arquetipo.demo.registro.web.dto.RegistroResponse;
@@ -18,7 +19,7 @@ import org.springframework.web.bind.annotation.RestController;
  */
 @Slf4j
 @RestController
-@RequestMapping("/api/v1/registro")
+@RequestMapping(Rutas.REGISTRO)
 public class RegistroController implements RegistroApi {
 
 	private final RegistroService service;

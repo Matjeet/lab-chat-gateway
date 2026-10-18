@@ -309,6 +309,47 @@ que ya cubre y que cualquier cliente gRPC nuevo puede reutilizar:
 | `ResourceNotFoundException` | gRPC `NOT_FOUND` | 404 |
 | (cualquier otra) | gRPC `INTERNAL` u otro no mapeado | 500 genérico |
 
+## Estándares de código
+
+### Constantes: nada de literales sueltos
+
+Todo literal de texto o número con significado para la lógica o la configuración vive en
+`common/Constantes.java`, nunca escrito en línea en el código que lo usa. Antes de crear una
+constante nueva, busca si ya existe una con el mismo significado y reutilízala.
+
+- **Una sola clase, agrupada por tema.** `Constantes` contiene clases anidadas: `Rutas`,
+  `Paginacion`, `Validacion`, `Texto`, `Autenticacion`, `Mensajes`, `ProblemDetails`, `Grpc`,
+  `WebSocket`, `Cors` y `Propiedades`. Se importa el grupo (`import
+  com.arquetipo.demo.common.Constantes.Rutas;`) y se usa como `Rutas.REGISTRO`. Si un literal
+  nuevo no encaja en ningún grupo, crea uno nuevo en la misma clase, no un archivo aparte.
+- **El nombre dice para qué sirve el valor, no cuál es.** Nunca `ZERO = 0`, `UNO = 1` o
+  `VACIO = ""`: son `INDICE_PRIMER_CARACTER`, `LONGITUD_UN_CARACTER`, `PUERTO_NO_CONFIGURADO`,
+  `CURSOR_PRIMERA_PAGINA`... Dos constantes pueden tener el mismo valor y nombres distintos
+  si significan cosas distintas (p. ej. `Grpc.METADATA_USUARIO` y `WebSocket.ATRIBUTO_USUARIO`
+  valen los dos `"usuario"`, pero son una cabecera gRPC y un atributo de sesión): cambiar una no
+  debe arrastrar a la otra.
+- **Valores derivados, compuestos a partir de otros.** Si un valor se deriva de otro, se arma
+  desde él en vez de repetirlo (`Rutas.REGISTRO = API_V1 + "/registro"`,
+  `Validacion.USERNAME_PATRON_CON_LONGITUD` a partir de las longitudes mínima y máxima del
+  username), para que no puedan desincronizarse.
+- **También dentro de anotaciones.** `@RequestMapping`, `@RequestParam(defaultValue)`,
+  `@Size`, `@Pattern`, `@Value`, `@ConfigurationProperties`... aceptan constantes de compilación
+  (`static final` de tipo primitivo o `String`); úsalas también ahí.
+
+**Fuera de alcance, a propósito:**
+
+- Los **mensajes de log**: se leen solo en el `log.*` donde están, y moverlos haría ilegible la
+  traza sin ganar reutilización. Esto incluye `RegistroRequest#toString()`, que existe solo para
+  enmascarar la contraseña en los logs.
+- Los **textos de documentación OpenAPI** (descripciones, resúmenes y ejemplos JSON de
+  `@Operation`/`@Schema`/`@ApiResponse`/`@ExampleObject`). Sí se usan constantes en los atributos
+  de `@Schema` que repiten una regla de validación (`minLength`/`maxLength`), para que la
+  documentación no se desincronice de la regla real.
+- Las **directivas del compilador** (`@SuppressWarnings("unchecked")`).
+- Los **tests**: conservan sus literales a propósito. Un test que compara contra
+  `"/api/v1/registro"` escrito a mano detecta si alguien cambia la constante por error; uno que
+  usara la misma constante pasaría igual.
+
 ## Qué el gateway deliberadamente no hace
 
 - **No persiste nada.** No tiene base de datos propia; toda persistencia vive en el

@@ -1,5 +1,8 @@
 package com.arquetipo.demo.conversacion.web;
 
+import com.arquetipo.demo.common.Constantes.Propiedades;
+import com.arquetipo.demo.common.Constantes.Rutas;
+import com.arquetipo.demo.common.Constantes.Texto;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.web.socket.config.annotation.EnableWebSocket;
@@ -23,14 +26,14 @@ public class ChatWebSocketConfig implements WebSocketConfigurer {
 	private final String[] allowedOrigins;
 
 	public ChatWebSocketConfig(ChatWebSocketHandler handler,
-			@Value("${app.websocket.allowed-origins:http://localhost:3000}") String allowedOrigins) {
+			@Value(Propiedades.ORIGENES_WEBSOCKET) String allowedOrigins) {
 		this.handler = handler;
-		this.allowedOrigins = allowedOrigins.split(",");
+		this.allowedOrigins = allowedOrigins.split(Texto.SEPARADOR_LISTA);
 	}
 
 	@Override
 	public void registerWebSocketHandlers(WebSocketHandlerRegistry registry) {
-		registry.addHandler(handler, "/ws/chat/{usuario}")
+		registry.addHandler(handler, Rutas.WEBSOCKET_CHAT)
 				.addInterceptors(new UsuarioHandshakeInterceptor())
 				.setAllowedOrigins(allowedOrigins);
 	}

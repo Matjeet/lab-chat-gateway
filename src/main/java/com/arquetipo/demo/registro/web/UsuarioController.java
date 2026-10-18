@@ -1,5 +1,7 @@
 package com.arquetipo.demo.registro.web;
 
+import com.arquetipo.demo.common.Constantes.Mensajes;
+import com.arquetipo.demo.common.Constantes.Rutas;
 import com.arquetipo.demo.common.auth.AutenticacionExtractor;
 import com.arquetipo.demo.common.exception.ForbiddenException;
 import com.arquetipo.demo.registro.service.RegistroService;
@@ -30,7 +32,7 @@ import org.springframework.web.bind.annotation.RestController;
  */
 @Slf4j
 @RestController
-@RequestMapping("/api/v1/usuarios")
+@RequestMapping(Rutas.USUARIOS)
 public class UsuarioController implements UsuarioApi {
 
 	private final RegistroService service;
@@ -42,7 +44,7 @@ public class UsuarioController implements UsuarioApi {
 	}
 
 	@Override
-	@GetMapping("/{uid}")
+	@GetMapping(Rutas.USUARIO_POR_UID)
 	public UsuarioResponse obtenerUsuario(
 			@PathVariable String uid,
 			@RequestHeader(value = HttpHeaders.AUTHORIZATION, required = false) String authorization) {
@@ -50,7 +52,7 @@ public class UsuarioController implements UsuarioApi {
 		String uidAutenticado = autenticacion.uidAutenticado(authorization);
 		if (!uidAutenticado.equals(uid)) {
 			log.warn("Acceso denegado: el uid autenticado no coincide con el solicitado. uid='{}'", uid);
-			throw new ForbiddenException("El token no autoriza a consultar este usuario");
+			throw new ForbiddenException(Mensajes.SIN_PERMISO_CONSULTAR_USUARIO);
 		}
 		UsuarioResponse respuesta = service.obtenerUsuario(uid);
 		log.debug("<< obtenerUsuario() -> OK, username='{}'", respuesta.username());
@@ -58,7 +60,7 @@ public class UsuarioController implements UsuarioApi {
 	}
 
 	@Override
-	@GetMapping("/existe")
+	@GetMapping(Rutas.USUARIO_EXISTE)
 	public ExisteUsernameResponse existeUsername(
 			@RequestParam String username,
 			@RequestHeader(value = HttpHeaders.AUTHORIZATION, required = false) String authorization) {

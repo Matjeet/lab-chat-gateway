@@ -1,5 +1,7 @@
 package com.arquetipo.demo.conversacion.grpc;
 
+import com.arquetipo.demo.common.Constantes.Grpc;
+import com.arquetipo.demo.common.Constantes.Mensajes;
 import com.arquetipo.demo.common.exception.DuplicateResourceException;
 import com.arquetipo.demo.common.exception.ResourceNotFoundException;
 import com.arquetipo.demo.common.exception.ServiceUnavailableException;
@@ -36,10 +38,9 @@ import org.springframework.stereotype.Component;
 @Component
 public class ConversacionGrpcClient {
 
-	private static final String NOMBRE_SERVICIO = "chat-conversacion";
 
 	private static final Metadata.Key<String> USUARIO_METADATA_KEY =
-			Metadata.Key.of("usuario", Metadata.ASCII_STRING_MARSHALLER);
+			Metadata.Key.of(Grpc.METADATA_USUARIO, Metadata.ASCII_STRING_MARSHALLER);
 
 	private final ConversacionGrpcServiceGrpc.ConversacionGrpcServiceStub stub;
 	private final ConversacionGrpcServiceGrpc.ConversacionGrpcServiceBlockingStub blockingStub;
@@ -113,7 +114,7 @@ public class ConversacionGrpcClient {
 				.setUsuarioB(usuarioB)
 				.setPage(page)
 				.setSize(size)
-				.setSort(sort == null ? "" : sort)
+				.setSort(sort == null ? Grpc.VALOR_AUSENTE : sort)
 				.build();
 
 		try {
@@ -139,7 +140,7 @@ public class ConversacionGrpcClient {
 		log.debug(">> listaChats(usuario='{}', conCursor={}, size={})", usuario, cursor != null && !cursor.isBlank(), size);
 		ListaChatsRequest peticion = ListaChatsRequest.newBuilder()
 				.setUsuario(usuario)
-				.setCursor(cursor == null ? "" : cursor)
+				.setCursor(cursor == null ? Grpc.VALOR_AUSENTE : cursor)
 				.setSize(size)
 				.build();
 
@@ -240,14 +241,14 @@ public class ConversacionGrpcClient {
 			case NOT_FOUND -> new ResourceNotFoundException(ex.getStatus().getDescription());
 			case ALREADY_EXISTS -> new DuplicateResourceException(ex.getStatus().getDescription());
 			case UNAVAILABLE -> {
-				log.error("No se pudo contactar con {} por gRPC", NOMBRE_SERVICIO, ex);
-				yield new ServiceUnavailableException(NOMBRE_SERVICIO);
+				log.error("No se pudo contactar con {} por gRPC", Grpc.NOMBRE_SERVICIO_CONVERSACION, ex);
+				yield new ServiceUnavailableException(Grpc.NOMBRE_SERVICIO_CONVERSACION);
 			}
 			default -> {
 				log.error("Fallo inesperado llamando a {} por gRPC (codigo={})",
-						NOMBRE_SERVICIO, ex.getStatus().getCode(), ex);
+						Grpc.NOMBRE_SERVICIO_CONVERSACION, ex.getStatus().getCode(), ex);
 				yield new RuntimeException(
-						"Ocurrio un error inesperado al comunicarse con " + NOMBRE_SERVICIO, ex);
+						Mensajes.ERROR_INESPERADO_GRPC + Grpc.NOMBRE_SERVICIO_CONVERSACION, ex);
 			}
 		};
 	}

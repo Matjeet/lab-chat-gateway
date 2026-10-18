@@ -1,5 +1,6 @@
 package com.arquetipo.demo.common.auth.firebase;
 
+import com.arquetipo.demo.common.Constantes.Propiedades;
 import com.google.api.client.http.apache.v2.ApacheHttpTransport;
 import com.google.auth.oauth2.GoogleCredentials;
 import com.google.firebase.FirebaseApp;
@@ -23,11 +24,12 @@ import org.springframework.context.annotation.Configuration;
  * {@code firebase.enabled=false} (los tests lo hacen).
  */
 @Configuration
-@ConditionalOnProperty(prefix = "firebase", name = "enabled", havingValue = "true", matchIfMissing = true)
+@ConditionalOnProperty(prefix = Propiedades.PREFIJO_FIREBASE, name = Propiedades.FIREBASE_HABILITADO,
+		havingValue = Propiedades.VALOR_HABILITADO, matchIfMissing = true)
 public class FirebaseAuthConfig {
 
 	@Bean
-	public FirebaseApp firebaseApp(@Value("${firebase.credentials-path:}") String credentialsPath) throws IOException {
+	public FirebaseApp firebaseApp(@Value(Propiedades.RUTA_CREDENCIALES_FIREBASE) String credentialsPath) throws IOException {
 		if (!FirebaseApp.getApps().isEmpty()) {
 			return FirebaseApp.getInstance();
 		}

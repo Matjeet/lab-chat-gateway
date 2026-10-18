@@ -1,5 +1,8 @@
 package com.arquetipo.demo.conversacion.web;
 
+import com.arquetipo.demo.common.Constantes.Texto;
+import com.arquetipo.demo.common.Constantes.Validacion;
+import com.arquetipo.demo.common.Constantes.WebSocket;
 import java.util.Map;
 import java.util.regex.Pattern;
 import org.springframework.http.HttpStatus;
@@ -21,23 +24,22 @@ import org.springframework.web.socket.server.HandshakeInterceptor;
  */
 public class UsuarioHandshakeInterceptor implements HandshakeInterceptor {
 
-	static final String ATRIBUTO_USUARIO = "usuario";
 
 	/** Mismo formato que {@code RegistroRequest.username} en chat-registro. */
-	private static final Pattern FORMATO_USERNAME = Pattern.compile("^[a-zA-Z0-9._-]{3,50}$");
+	private static final Pattern FORMATO_USERNAME = Pattern.compile(Validacion.USERNAME_PATRON_CON_LONGITUD);
 
 	@Override
 	public boolean beforeHandshake(ServerHttpRequest request, ServerHttpResponse response,
 			WebSocketHandler wsHandler, Map<String, Object> attributes) {
 		String path = request.getURI().getPath();
-		String usuario = path.substring(path.lastIndexOf('/') + 1);
+		String usuario = path.substring(path.lastIndexOf(Texto.SEPARADOR_RUTA) + Texto.LONGITUD_UN_CARACTER);
 		if (!FORMATO_USERNAME.matcher(usuario).matches()) {
 			// Sin esto, Spring responde 200 OK sin upgrade (ni error explicito ni Sec-WebSocket-
 			// Accept): un cliente real se queda esperando, no lo trata como un rechazo limpio.
 			response.setStatusCode(HttpStatus.BAD_REQUEST);
 			return false;
 		}
-		attributes.put(ATRIBUTO_USUARIO, usuario);
+		attributes.put(WebSocket.ATRIBUTO_USUARIO, usuario);
 		return true;
 	}
 

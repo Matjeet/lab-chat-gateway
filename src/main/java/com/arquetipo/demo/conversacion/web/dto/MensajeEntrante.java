@@ -1,5 +1,6 @@
 package com.arquetipo.demo.conversacion.web.dto;
 
+import com.arquetipo.demo.common.Constantes.Validacion;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
@@ -15,12 +16,12 @@ public record MensajeEntrante(
 
 		/** Mismo formato que {@code RegistroRequest.username} en chat-registro. */
 		@NotBlank
-		@Size(min = 3, max = 50)
-		@Pattern(regexp = "^[a-zA-Z0-9._-]+$")
+		@Size(min = Validacion.USERNAME_LONGITUD_MINIMA, max = Validacion.USERNAME_LONGITUD_MAXIMA)
+		@Pattern(regexp = Validacion.USERNAME_PATRON)
 		String destinatario,
 
 		@NotBlank
-		@Size(max = 2000)
+		@Size(max = Validacion.MENSAJE_CONTENIDO_LONGITUD_MAXIMA)
 		String contenido
 ) {
 }

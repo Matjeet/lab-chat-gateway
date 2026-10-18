@@ -1,5 +1,7 @@
 package com.arquetipo.demo.notificacion.grpc;
 
+import com.arquetipo.demo.common.Constantes.Grpc;
+import com.arquetipo.demo.common.Constantes.Mensajes;
 import com.arquetipo.demo.common.exception.ResourceNotFoundException;
 import com.arquetipo.demo.common.exception.ServiceUnavailableException;
 import com.arquetipo.demo.common.exception.ValidationException;
@@ -22,7 +24,6 @@ import org.springframework.stereotype.Component;
 @Component
 public class NotificacionGrpcClient {
 
-	private static final String NOMBRE_SERVICIO = "chat-notificaciones";
 
 	private final NotificacionGrpcServiceGrpc.NotificacionGrpcServiceBlockingStub blockingStub;
 
@@ -36,7 +37,7 @@ public class NotificacionGrpcClient {
 				.setReceptor(receptor)
 				.setPage(page)
 				.setSize(size)
-				.setSort(sort == null ? "" : sort)
+				.setSort(sort == null ? Grpc.VALOR_AUSENTE : sort)
 				.build();
 
 		try {
@@ -92,14 +93,14 @@ public class NotificacionGrpcClient {
 			case INVALID_ARGUMENT -> new ValidationException(detalle, List.of());
 			case NOT_FOUND -> new ResourceNotFoundException(detalle);
 			case UNAVAILABLE -> {
-				log.error("No se pudo contactar con {} por gRPC", NOMBRE_SERVICIO, ex);
-				yield new ServiceUnavailableException(NOMBRE_SERVICIO);
+				log.error("No se pudo contactar con {} por gRPC", Grpc.NOMBRE_SERVICIO_NOTIFICACIONES, ex);
+				yield new ServiceUnavailableException(Grpc.NOMBRE_SERVICIO_NOTIFICACIONES);
 			}
 			default -> {
 				log.error("Fallo inesperado llamando a {} por gRPC (codigo={})",
-						NOMBRE_SERVICIO, ex.getStatus().getCode(), ex);
+						Grpc.NOMBRE_SERVICIO_NOTIFICACIONES, ex.getStatus().getCode(), ex);
 				yield new RuntimeException(
-						"Ocurrio un error inesperado al comunicarse con " + NOMBRE_SERVICIO, ex);
+						Mensajes.ERROR_INESPERADO_GRPC + Grpc.NOMBRE_SERVICIO_NOTIFICACIONES, ex);
 			}
 		};
 	}

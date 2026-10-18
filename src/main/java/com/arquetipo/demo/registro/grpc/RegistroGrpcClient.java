@@ -1,5 +1,8 @@
 package com.arquetipo.demo.registro.grpc;
 
+import com.arquetipo.demo.common.Constantes.Grpc;
+import com.arquetipo.demo.common.Constantes.Mensajes;
+import com.arquetipo.demo.common.Constantes.Texto;
 import com.arquetipo.demo.common.exception.DuplicateResourceException;
 import com.arquetipo.demo.common.exception.FieldError;
 import com.arquetipo.demo.common.exception.ResourceNotFoundException;
@@ -32,7 +35,6 @@ import org.springframework.stereotype.Component;
 @Component
 public class RegistroGrpcClient {
 
-	private static final String NOMBRE_SERVICIO = "chat-registro";
 
 	private final RegistroGrpcServiceGrpc.RegistroGrpcServiceBlockingStub stub;
 
@@ -46,7 +48,7 @@ public class RegistroGrpcClient {
 				.setUsername(request.username())
 				.setEmail(request.email())
 				.setPassword(request.password())
-				.setAvatar(request.avatar() == null ? "" : request.avatar())
+				.setAvatar(request.avatar() == null ? Grpc.VALOR_AUSENTE : request.avatar())
 				.build();
 
 		try {
@@ -99,7 +101,7 @@ public class RegistroGrpcClient {
 	public boolean existeUsername(String username) {
 		log.debug(">> existeUsername(username='{}')", username);
 		ExisteUsernameRequest peticion = ExisteUsernameRequest.newBuilder()
-				.setUsername(username == null ? "" : username)
+				.setUsername(username == null ? Grpc.VALOR_AUSENTE : username)
 				.build();
 
 		try {
@@ -119,14 +121,14 @@ public class RegistroGrpcClient {
 			case INVALID_ARGUMENT -> new ValidationException(detalle, parseFieldErrors(detalle));
 			case NOT_FOUND -> new ResourceNotFoundException(detalle);
 			case UNAVAILABLE -> {
-				log.error("No se pudo contactar con {} por gRPC", NOMBRE_SERVICIO, ex);
-				yield new ServiceUnavailableException(NOMBRE_SERVICIO);
+				log.error("No se pudo contactar con {} por gRPC", Grpc.NOMBRE_SERVICIO_REGISTRO, ex);
+				yield new ServiceUnavailableException(Grpc.NOMBRE_SERVICIO_REGISTRO);
 			}
 			default -> {
 				log.error("Fallo inesperado llamando a {} por gRPC (codigo={})",
-						NOMBRE_SERVICIO, ex.getStatus().getCode(), ex);
+						Grpc.NOMBRE_SERVICIO_REGISTRO, ex.getStatus().getCode(), ex);
 				yield new RuntimeException(
-						"Ocurrio un error inesperado al comunicarse con " + NOMBRE_SERVICIO, ex);
+						Mensajes.ERROR_INESPERADO_GRPC + Grpc.NOMBRE_SERVICIO_REGISTRO, ex);
 			}
 		};
 	}
@@ -137,18 +139,22 @@ public class RegistroGrpcClient {
 	 * Si no sigue ese formato, cae a un unico error generico en vez de fallar.
 	 */
 	private static List<FieldError> parseFieldErrors(String descripcion) {
-		if (descripcion == null || !descripcion.contains("->")) {
-			return List.of(new FieldError("_general", descripcion == null ? "" : descripcion));
+		if (descripcion == null || !descripcion.contains(Grpc.SEPARADOR_DETALLE_ERRORES)) {
+			return List.of(new FieldError(Grpc.CAMPO_ERROR_GENERAL,
+					descripcion == null ? Mensajes.SIN_DETALLE : descripcion));
 		}
-		String detalle = descripcion.substring(descripcion.indexOf("->") + 2).trim();
-		return Arrays.stream(detalle.split(";"))
+		int inicioDetalle = descripcion.indexOf(Grpc.SEPARADOR_DETALLE_ERRORES) + Grpc.SEPARADOR_DETALLE_ERRORES.length();
+		String detalle = descripcion.substring(inicioDetalle).trim();
+		return Arrays.stream(detalle.split(Grpc.SEPARADOR_ERRORES))
 				.map(String::trim)
 				.filter(par -> !par.isBlank())
 				.map(par -> {
-					int separador = par.indexOf(':');
-					return separador < 0
-							? new FieldError("_general", par)
-							: new FieldError(par.substring(0, separador).trim(), par.substring(separador + 1).trim());
+					int separador = par.indexOf(Grpc.SEPARADOR_CAMPO_MENSAJE);
+					return separador == Texto.INDICE_NO_ENCONTRADO
+							? new FieldError(Grpc.CAMPO_ERROR_GENERAL, par)
+							: new FieldError(
+									par.substring(Texto.INDICE_PRIMER_CARACTER, separador).trim(),
+									par.substring(separador + Texto.LONGITUD_UN_CARACTER).trim());
 				})
 				.toList();
 	}

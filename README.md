@@ -197,6 +197,7 @@ Con la aplicación levantada (`./gradlew bootRun`):
 com.arquetipo.demo
 ├── DemoApplication.java
 ├── common/                              infraestructura transversal
+│   ├── Constantes.java                      todos los literales de logica/configuracion, por tema (ver docs/arquitectura-gateway.md, "Estandares de codigo")
 │   ├── config/CorsConfig.java · CorsProperties.java   CORS para /api/** (el gateway habla con el navegador)
 │   ├── auth/                                el gateway es la UNICA frontera de autenticacion del sistema
 │   │   ├── VerificadorTokenIdentidad.java       puerto: verificar(idToken) -> uid

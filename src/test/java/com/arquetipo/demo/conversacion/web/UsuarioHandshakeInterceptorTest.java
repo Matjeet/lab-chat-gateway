@@ -1,5 +1,6 @@
 package com.arquetipo.demo.conversacion.web;
 
+import com.arquetipo.demo.common.Constantes;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
@@ -31,7 +32,7 @@ class UsuarioHandshakeInterceptorTest {
 		boolean continuar = interceptor.beforeHandshake(requestCon("mateo"), response, null, atributos);
 
 		assertThat(continuar).isTrue();
-		assertThat(atributos).containsEntry(UsuarioHandshakeInterceptor.ATRIBUTO_USUARIO, "mateo");
+		assertThat(atributos).containsEntry(Constantes.WebSocket.ATRIBUTO_USUARIO, "mateo");
 	}
 
 	@Test

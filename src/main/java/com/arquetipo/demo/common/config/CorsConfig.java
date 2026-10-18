@@ -1,5 +1,6 @@
 package com.arquetipo.demo.common.config;
 
+import com.arquetipo.demo.common.Constantes.Rutas;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Configuration;
@@ -34,7 +35,7 @@ public class CorsConfig implements WebMvcConfigurer {
 			return;
 		}
 		log.info("CORS habilitado para /api/** desde: {}", properties.allowedOrigins());
-		registry.addMapping("/api/**")
+		registry.addMapping(Rutas.PATRON_API)
 				.allowedOrigins(properties.allowedOrigins().toArray(String[]::new))
 				.allowedMethods(properties.allowedMethods().toArray(String[]::new))
 				.allowedHeaders(properties.allowedHeaders().toArray(String[]::new))

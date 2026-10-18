@@ -1,5 +1,7 @@
 package com.arquetipo.demo.notificacion.grpc;
 
+import com.arquetipo.demo.common.Constantes.Grpc;
+import com.arquetipo.demo.common.Constantes.Propiedades;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
 /**
@@ -7,15 +9,15 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
  * (ver {@code application.yml} -> {@code servicios.notificaciones} / variables
  * {@code NOTIFICACIONES_GRPC_HOST} y {@code NOTIFICACIONES_GRPC_PORT}).
  */
-@ConfigurationProperties(prefix = "servicios.notificaciones")
+@ConfigurationProperties(prefix = Propiedades.PREFIJO_SERVICIO_NOTIFICACIONES)
 public record NotificacionGrpcProperties(String grpcHost, int grpcPort) {
 
 	public NotificacionGrpcProperties {
 		if (grpcHost == null || grpcHost.isBlank()) {
-			grpcHost = "localhost";
+			grpcHost = Grpc.HOST_POR_DEFECTO;
 		}
-		if (grpcPort <= 0) {
-			grpcPort = 9092;
+		if (grpcPort <= Grpc.PUERTO_NO_CONFIGURADO) {
+			grpcPort = Grpc.PUERTO_NOTIFICACIONES_POR_DEFECTO;
 		}
 	}
 }
