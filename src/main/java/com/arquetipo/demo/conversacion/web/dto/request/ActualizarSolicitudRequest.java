@@ -1,4 +1,4 @@
-package com.arquetipo.demo.conversacion.web.dto;
+package com.arquetipo.demo.conversacion.web.dto.request;
 
 import com.arquetipo.demo.common.Constantes.Validacion;
 import io.swagger.v3.oas.annotations.media.Schema;

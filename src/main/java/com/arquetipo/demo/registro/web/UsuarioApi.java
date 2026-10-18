@@ -1,7 +1,7 @@
 package com.arquetipo.demo.registro.web;
 
-import com.arquetipo.demo.registro.web.dto.ExisteUsernameResponse;
-import com.arquetipo.demo.registro.web.dto.UsuarioResponse;
+import com.arquetipo.demo.registro.web.dto.response.ExisteUsernameResponse;
+import com.arquetipo.demo.registro.web.dto.response.UsuarioResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.enums.SecuritySchemeType;

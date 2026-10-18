@@ -1,9 +1,9 @@
 package com.arquetipo.demo.registro.service;
 
 import com.arquetipo.demo.registro.grpc.RegistroGrpcClient;
-import com.arquetipo.demo.registro.web.dto.RegistroRequest;
-import com.arquetipo.demo.registro.web.dto.RegistroResponse;
-import com.arquetipo.demo.registro.web.dto.UsuarioResponse;
+import com.arquetipo.demo.registro.web.dto.request.RegistroRequest;
+import com.arquetipo.demo.registro.web.dto.response.RegistroResponse;
+import com.arquetipo.demo.registro.web.dto.response.UsuarioResponse;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 

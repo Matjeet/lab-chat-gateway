@@ -1,4 +1,4 @@
-package com.arquetipo.demo.conversacion.web.dto;
+package com.arquetipo.demo.conversacion.web.dto.request;
 
 import com.arquetipo.demo.common.Constantes.Validacion;
 import jakarta.validation.constraints.NotBlank;

@@ -7,11 +7,11 @@ import com.arquetipo.demo.common.exception.DuplicateResourceException;
 import com.arquetipo.demo.common.exception.ResourceNotFoundException;
 import com.arquetipo.demo.common.exception.ServiceUnavailableException;
 import com.arquetipo.demo.common.exception.ValidationException;
-import com.arquetipo.demo.conversacion.web.dto.CursorPage;
-import com.arquetipo.demo.conversacion.web.dto.MensajeEntrante;
-import com.arquetipo.demo.conversacion.web.dto.MensajeResponse;
-import com.arquetipo.demo.conversacion.web.dto.PageResponse;
-import com.arquetipo.demo.conversacion.web.dto.SolicitudChatResponse;
+import com.arquetipo.demo.conversacion.web.dto.request.MensajeEntrante;
+import com.arquetipo.demo.conversacion.web.dto.response.CursorPage;
+import com.arquetipo.demo.conversacion.web.dto.response.MensajeResponse;
+import com.arquetipo.demo.conversacion.web.dto.response.PageResponse;
+import com.arquetipo.demo.conversacion.web.dto.response.SolicitudChatResponse;
 import io.grpc.Context;
 import io.grpc.Contexts;
 import io.grpc.ManagedChannel;
@@ -275,7 +275,7 @@ class ConversacionGrpcClientTest {
 			}
 		});
 
-		CursorPage<com.arquetipo.demo.conversacion.web.dto.ChatResumen> pagina =
+		CursorPage<com.arquetipo.demo.conversacion.web.dto.response.ChatResumen> pagina =
 				client.listaChats("mateo", "", 20);
 
 		assertThat(pagina.content()).hasSize(2);

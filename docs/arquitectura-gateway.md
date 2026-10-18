@@ -46,10 +46,12 @@ registro/
 │   │                              existeUsername (solo exige estar autenticado)
 │   ├── UsuarioApi.java           contrato OpenAPI de ambos
 │   └── dto/
-│       ├── RegistroRequest.java  mismas anotaciones Bean Validation que el microservicio
-│       ├── RegistroResponse.java
-│       ├── UsuarioResponse.java
-│       └── ExisteUsernameResponse.java
+│       ├── request/
+│       │   └── RegistroRequest.java  mismas anotaciones Bean Validation que el microservicio
+│       └── response/
+│           ├── RegistroResponse.java
+│           ├── UsuarioResponse.java
+│           └── ExisteUsernameResponse.java
 ├── service/
 │   └── RegistroService.java      orquesta; hoy solo delega, es donde iria logica futura
 │                                  (agregar datos de mas de un microservicio, etc.)
@@ -74,7 +76,6 @@ conversacion/
 │   │                                      "Autenticacion" mas abajo)
 │   ├── ConversacionApi.java              contrato OpenAPI de los tres
 │   └── dto/ (MensajeEntrante, MensajeResponse, PageResponse, ChatResumen, CursorPage,
-│             SolicitudChatRequest, SolicitudChatResponse)
 ├── service/
 │   └── ConversacionService.java          delega en el grpc client; un metodo por rpc (uno
 │                                          bidi, tres unarios)
@@ -100,9 +101,11 @@ notificacion/
 │   │                                  actualizarLeida (compara uid directo, sin atar al recurso)
 │   ├── NotificacionApi.java          contrato OpenAPI de ambos
 │   └── dto/
-│       ├── NotificacionResponse.java
-│       ├── PageResponse.java         copia propia, mismo contrato que en registro/conversacion
-│       └── MarcarLeidaRequest.java   uid (solo para comparar) + leida
+│       ├── request/
+│       │   └── MarcarLeidaRequest.java   uid (solo para comparar) + leida
+│       └── response/
+│           ├── NotificacionResponse.java
+│           └── PageResponse.java         copia propia, mismo contrato que en registro/conversacion
 ├── service/
 │   └── NotificacionService.java      orquesta; hoy solo delega
 └── grpc/
@@ -349,6 +352,15 @@ constante nueva, busca si ya existe una con el mismo significado y reutilízala.
 - Los **tests**: conservan sus literales a propósito. Un test que compara contra
   `"/api/v1/registro"` escrito a mano detecta si alguien cambia la constante por error; uno que
   usara la misma constante pasaría igual.
+
+### DTO: `request/` y `response/` separados
+
+Dentro de `web/dto/` de cada feature, los DTO viven en dos subpaquetes según su dirección:
+`request/` para lo que entra (cuerpos de petición REST y el payload del WebSocket, como
+`MensajeEntrante`) y `response/` para lo que sale (respuestas y envoltorios como `PageResponse`
+o `CursorPage`). Un DTO nuevo se crea directamente en el que le corresponde, nunca suelto en
+`dto/`. Un envoltorio genérico que cada feature mantiene por su cuenta (`PageResponse`) se
+duplica en el `response/` de cada una, igual que antes.
 
 ## Qué el gateway deliberadamente no hace
 

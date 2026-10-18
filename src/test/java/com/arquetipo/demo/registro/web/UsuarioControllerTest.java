@@ -13,7 +13,7 @@ import com.arquetipo.demo.common.exception.ResourceNotFoundException;
 import com.arquetipo.demo.common.exception.UnauthorizedException;
 import com.arquetipo.demo.common.exception.ValidationException;
 import com.arquetipo.demo.registro.service.RegistroService;
-import com.arquetipo.demo.registro.web.dto.UsuarioResponse;
+import com.arquetipo.demo.registro.web.dto.response.UsuarioResponse;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;

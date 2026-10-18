@@ -2,8 +2,8 @@ package com.arquetipo.demo.registro.web;
 
 import com.arquetipo.demo.common.Constantes.Rutas;
 import com.arquetipo.demo.registro.service.RegistroService;
-import com.arquetipo.demo.registro.web.dto.RegistroRequest;
-import com.arquetipo.demo.registro.web.dto.RegistroResponse;
+import com.arquetipo.demo.registro.web.dto.request.RegistroRequest;
+import com.arquetipo.demo.registro.web.dto.response.RegistroResponse;
 import jakarta.validation.Valid;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;

@@ -1,4 +1,4 @@
-package com.arquetipo.demo.registro.web.dto;
+package com.arquetipo.demo.registro.web.dto.request;
 
 import com.arquetipo.demo.common.Constantes.Texto;
 import com.arquetipo.demo.common.Constantes.Validacion;

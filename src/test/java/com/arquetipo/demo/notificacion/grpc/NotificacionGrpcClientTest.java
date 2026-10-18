@@ -5,8 +5,8 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.arquetipo.demo.common.exception.ResourceNotFoundException;
 import com.arquetipo.demo.common.exception.ServiceUnavailableException;
-import com.arquetipo.demo.notificacion.web.dto.NotificacionResponse;
-import com.arquetipo.demo.notificacion.web.dto.PageResponse;
+import com.arquetipo.demo.notificacion.web.dto.response.NotificacionResponse;
+import com.arquetipo.demo.notificacion.web.dto.response.PageResponse;
 import io.grpc.ManagedChannel;
 import io.grpc.Server;
 import io.grpc.Status;

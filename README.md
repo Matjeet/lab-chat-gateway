@@ -220,7 +220,8 @@ com.arquetipo.demo
 │   │   ├── UsuarioController.java           GET /api/v1/usuarios/{uid} (autentica y compara uid) y
 │   │   │                                     /existe (autentica, sin comparar), ambos con AutenticacionExtractor
 │   │   ├── UsuarioApi.java                  contrato OpenAPI de los dos
-│   │   └── dto/RegistroRequest.java · RegistroResponse.java · UsuarioResponse.java · ExisteUsernameResponse.java
+│   │   └── dto/request/RegistroRequest.java
+│   │       dto/response/RegistroResponse.java · UsuarioResponse.java · ExisteUsernameResponse.java
 │   ├── service/RegistroService.java         orquesta; hoy solo delega en el cliente gRPC
 │   └── grpc/
 │       ├── RegistroGrpcProperties.java          host/puerto de chat-registro (application.yml)
@@ -235,8 +236,9 @@ com.arquetipo.demo
 │   │   │                                      /{usuario}/chats y POST /solicitudes (autenticados, resuelven
 │   │   │                                      el username via RegistroService)
 │   │   ├── ConversacionApi.java              contrato OpenAPI de los tres
-│   │   └── dto/MensajeEntrante.java · MensajeResponse.java · PageResponse.java · ChatResumen.java ·
-│   │       CursorPage.java · SolicitudChatRequest.java · SolicitudChatResponse.java
+│   │   └── dto/request/MensajeEntrante.java · SolicitudChatRequest.java · ActualizarSolicitudRequest.java
+│   │       dto/response/MensajeResponse.java · PageResponse.java · ChatResumen.java ·
+│   │       CursorPage.java · SolicitudChatResponse.java
 │   ├── service/ConversacionService.java     orquesta; delega en el cliente gRPC
 │   └── grpc/
 │       ├── ConversacionGrpcProperties.java       host/puerto de chat-conversacion (application.yml)
@@ -248,7 +250,8 @@ com.arquetipo.demo
     │   │                                      resuelto) y PATCH /{id} (compara uid directo, sin atar
     │   │                                      al recurso — ver arquitectura-gateway.md)
     │   ├── NotificacionApi.java              contrato OpenAPI de los dos
-    │   └── dto/NotificacionResponse.java · PageResponse.java (copia propia) · MarcarLeidaRequest.java
+    │   └── dto/request/MarcarLeidaRequest.java
+    │       dto/response/NotificacionResponse.java · PageResponse.java (copia propia)
     ├── service/NotificacionService.java     orquesta; delega en el cliente gRPC
     └── grpc/
         ├── NotificacionGrpcProperties.java       host/puerto de chat-notificaciones (application.yml)

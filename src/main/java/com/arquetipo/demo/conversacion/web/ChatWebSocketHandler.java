@@ -2,8 +2,8 @@ package com.arquetipo.demo.conversacion.web;
 
 import com.arquetipo.demo.common.Constantes.WebSocket;
 import com.arquetipo.demo.conversacion.service.ConversacionService;
-import com.arquetipo.demo.conversacion.web.dto.MensajeEntrante;
-import com.arquetipo.demo.conversacion.web.dto.MensajeResponse;
+import com.arquetipo.demo.conversacion.web.dto.request.MensajeEntrante;
+import com.arquetipo.demo.conversacion.web.dto.response.MensajeResponse;
 import io.grpc.stub.StreamObserver;
 import jakarta.validation.ConstraintViolation;
 import jakarta.validation.Validator;
