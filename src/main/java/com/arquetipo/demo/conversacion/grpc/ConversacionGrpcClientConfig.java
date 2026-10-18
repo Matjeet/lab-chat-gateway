@@ -1,5 +1,6 @@
 package com.arquetipo.demo.conversacion.grpc;
 
+import com.arquetipo.demo.common.Constantes.Grpc;
 import io.grpc.ManagedChannel;
 import io.grpc.ManagedChannelBuilder;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
@@ -20,7 +21,7 @@ import org.springframework.context.annotation.Configuration;
 @EnableConfigurationProperties(ConversacionGrpcProperties.class)
 public class ConversacionGrpcClientConfig {
 
-	@Bean(destroyMethod = "shutdown")
+	@Bean(destroyMethod = Grpc.METODO_CIERRE_CANAL)
 	public ManagedChannel conversacionChannel(ConversacionGrpcProperties propiedades) {
 		return ManagedChannelBuilder
 				.forAddress(propiedades.grpcHost(), propiedades.grpcPort())

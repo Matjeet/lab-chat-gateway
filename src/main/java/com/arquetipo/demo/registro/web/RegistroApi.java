@@ -1,7 +1,7 @@
 package com.arquetipo.demo.registro.web;
 
-import com.arquetipo.demo.registro.web.dto.RegistroRequest;
-import com.arquetipo.demo.registro.web.dto.RegistroResponse;
+import com.arquetipo.demo.registro.web.dto.request.RegistroRequest;
+import com.arquetipo.demo.registro.web.dto.response.RegistroResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.ExampleObject;

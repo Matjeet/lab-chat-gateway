@@ -1,5 +1,7 @@
 package com.arquetipo.demo.conversacion.grpc;
 
+import com.arquetipo.demo.common.Constantes.Grpc;
+import com.arquetipo.demo.common.Constantes.Propiedades;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
 /**
@@ -7,15 +9,15 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
  * (ver {@code application.yml} -> {@code servicios.conversacion} / variables
  * {@code CONVERSACION_GRPC_HOST} y {@code CONVERSACION_GRPC_PORT}).
  */
-@ConfigurationProperties(prefix = "servicios.conversacion")
+@ConfigurationProperties(prefix = Propiedades.PREFIJO_SERVICIO_CONVERSACION)
 public record ConversacionGrpcProperties(String grpcHost, int grpcPort) {
 
 	public ConversacionGrpcProperties {
 		if (grpcHost == null || grpcHost.isBlank()) {
-			grpcHost = "localhost";
+			grpcHost = Grpc.HOST_POR_DEFECTO;
 		}
-		if (grpcPort <= 0) {
-			grpcPort = 9091;
+		if (grpcPort <= Grpc.PUERTO_NO_CONFIGURADO) {
+			grpcPort = Grpc.PUERTO_CONVERSACION_POR_DEFECTO;
 		}
 	}
 }

@@ -6,8 +6,8 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.arquetipo.demo.registro.grpc.RegistroGrpcClient;
-import com.arquetipo.demo.registro.web.dto.RegistroRequest;
-import com.arquetipo.demo.registro.web.dto.RegistroResponse;
+import com.arquetipo.demo.registro.web.dto.request.RegistroRequest;
+import com.arquetipo.demo.registro.web.dto.response.RegistroResponse;
 import java.time.Instant;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;

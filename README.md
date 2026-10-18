@@ -197,10 +197,12 @@ Con la aplicación levantada (`./gradlew bootRun`):
 com.arquetipo.demo
 ├── DemoApplication.java
 ├── common/                              infraestructura transversal
+│   ├── Constantes.java                      todos los literales de logica/configuracion, por tema (ver docs/arquitectura-gateway.md, "Estandares de codigo")
 │   ├── config/CorsConfig.java · CorsProperties.java   CORS para /api/** (el gateway habla con el navegador)
 │   ├── auth/                                el gateway es la UNICA frontera de autenticacion del sistema
 │   │   ├── VerificadorTokenIdentidad.java       puerto: verificar(idToken) -> uid
-│   │   ├── AutenticacionExtractor.java          lo usa cualquier controlador: uidAutenticado(Authorization)
+│   │   ├── AutenticacionExtractor.java          extrae y verifica el token: uidAutenticado(Authorization)
+│   │   ├── ValidadorAcceso.java                 lo usan los controladores: autenticar / uidCoincide / usernameCoincide
 │   │   └── firebase/
 │   │       ├── FirebaseAuthConfig.java              inicializa FirebaseApp/FirebaseAuth (solo para verificar)
 │   │       └── FirebaseVerificadorTokenIdentidad.java  implementacion sobre FirebaseAuth.verifyIdToken
@@ -217,9 +219,10 @@ com.arquetipo.demo
 │   │   ├── RegistroController.java          POST /api/v1/registro (valida + delega)
 │   │   ├── RegistroApi.java                 contrato OpenAPI del registro
 │   │   ├── UsuarioController.java           GET /api/v1/usuarios/{uid} (autentica y compara uid) y
-│   │   │                                     /existe (autentica, sin comparar), ambos con AutenticacionExtractor
+│   │   │                                     /existe (autentica, sin comparar), ambos con ValidadorAcceso
 │   │   ├── UsuarioApi.java                  contrato OpenAPI de los dos
-│   │   └── dto/RegistroRequest.java · RegistroResponse.java · UsuarioResponse.java · ExisteUsernameResponse.java
+│   │   └── dto/request/RegistroRequest.java
+│   │       dto/response/RegistroResponse.java · UsuarioResponse.java · ExisteUsernameResponse.java
 │   ├── service/RegistroService.java         orquesta; hoy solo delega en el cliente gRPC
 │   └── grpc/
 │       ├── RegistroGrpcProperties.java          host/puerto de chat-registro (application.yml)
@@ -227,15 +230,19 @@ com.arquetipo.demo
 │       └── RegistroGrpcClient.java               DTO <-> proto (Registrar + BuscarUsuarioPorUid + ExisteUsername), errores gRPC <-> excepciones de dominio
 ├── conversacion/                        enrutado hacia chat-conversacion (WebSocket bidi + REST unario)
 │   ├── web/
-│   │   ├── ChatWebSocketConfig.java          registra el handler en /ws/chat/{usuario}
-│   │   ├── ChatWebSocketHandler.java         puente: frame de texto <-> stream de gRPC
-│   │   ├── UsuarioHandshakeInterceptor.java  valida el {usuario} de la URL antes de abrir el stream
-│   │   ├── ConversacionController.java       GET /api/v1/conversaciones/{usuarioA}/{usuarioB} (sin auth),
-│   │   │                                      /{usuario}/chats y POST /solicitudes (autenticados, resuelven
-│   │   │                                      el username via RegistroService)
-│   │   ├── ConversacionApi.java              contrato OpenAPI de los tres
-│   │   └── dto/MensajeEntrante.java · MensajeResponse.java · PageResponse.java · ChatResumen.java ·
-│   │       CursorPage.java · SolicitudChatRequest.java · SolicitudChatResponse.java
+│   │   ├── websocket/
+│   │   │   ├── ChatWebSocketConfig.java          registra el handler en /ws/chat/{usuario}
+│   │   │   ├── ChatWebSocketHandler.java         puente: frame de texto <-> stream de gRPC
+│   │   │   └── UsuarioHandshakeInterceptor.java  valida el {usuario} de la URL antes de abrir el stream
+│   │   ├── rest/
+│   │   │   ├── ConversacionController.java       GET /api/v1/conversaciones/{usuarioA}/{usuarioB} (sin auth),
+│   │   │   │                                      /{usuario}/chats, POST y PATCH /solicitudes (autenticados,
+│   │   │   │                                      validan con ValidadorAcceso)
+│   │   │   └── ConversacionApi.java              contrato OpenAPI
+│   │   └── dto/                                  compartido por rest y websocket
+│   │       ├── request/MensajeEntrante.java · SolicitudChatRequest.java · ActualizarSolicitudRequest.java
+│   │       └── response/MensajeResponse.java · PageResponse.java · ChatResumen.java ·
+│   │           CursorPage.java · SolicitudChatResponse.java
 │   ├── service/ConversacionService.java     orquesta; delega en el cliente gRPC
 │   └── grpc/
 │       ├── ConversacionGrpcProperties.java       host/puerto de chat-conversacion (application.yml)
@@ -247,7 +254,8 @@ com.arquetipo.demo
     │   │                                      resuelto) y PATCH /{id} (compara uid directo, sin atar
     │   │                                      al recurso — ver arquitectura-gateway.md)
     │   ├── NotificacionApi.java              contrato OpenAPI de los dos
-    │   └── dto/NotificacionResponse.java · PageResponse.java (copia propia) · MarcarLeidaRequest.java
+    │   └── dto/request/MarcarLeidaRequest.java
+    │       dto/response/NotificacionResponse.java · PageResponse.java (copia propia)
     ├── service/NotificacionService.java     orquesta; delega en el cliente gRPC
     └── grpc/
         ├── NotificacionGrpcProperties.java       host/puerto de chat-notificaciones (application.yml)

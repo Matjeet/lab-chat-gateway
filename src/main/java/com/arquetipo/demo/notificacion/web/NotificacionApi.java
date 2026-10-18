@@ -1,8 +1,8 @@
 package com.arquetipo.demo.notificacion.web;
 
-import com.arquetipo.demo.notificacion.web.dto.MarcarLeidaRequest;
-import com.arquetipo.demo.notificacion.web.dto.NotificacionResponse;
-import com.arquetipo.demo.notificacion.web.dto.PageResponse;
+import com.arquetipo.demo.notificacion.web.dto.request.MarcarLeidaRequest;
+import com.arquetipo.demo.notificacion.web.dto.response.NotificacionResponse;
+import com.arquetipo.demo.notificacion.web.dto.response.PageResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Content;

@@ -1,5 +1,7 @@
 package com.arquetipo.demo.common.auth.firebase;
 
+import com.arquetipo.demo.common.Constantes.Mensajes;
+import com.arquetipo.demo.common.Constantes.Propiedades;
 import com.arquetipo.demo.common.auth.VerificadorTokenIdentidad;
 import com.arquetipo.demo.common.exception.UnauthorizedException;
 import com.google.firebase.auth.FirebaseAuth;
@@ -16,7 +18,8 @@ import org.springframework.stereotype.Component;
  */
 @Slf4j
 @Component
-@ConditionalOnProperty(prefix = "firebase", name = "enabled", havingValue = "true", matchIfMissing = true)
+@ConditionalOnProperty(prefix = Propiedades.PREFIJO_FIREBASE, name = Propiedades.FIREBASE_HABILITADO,
+		havingValue = Propiedades.VALOR_HABILITADO, matchIfMissing = true)
 public class FirebaseVerificadorTokenIdentidad implements VerificadorTokenIdentidad {
 
 	private final FirebaseAuth firebaseAuth;
@@ -39,11 +42,11 @@ public class FirebaseVerificadorTokenIdentidad implements VerificadorTokenIdenti
 			// Nunca se loguea el token en si (es una credencial): solo el codigo de error que
 			// reporta Firebase, suficiente para depurar sin exponer nada sensible.
 			log.warn("Token de identidad rechazado por Firebase: {}", ex.getAuthErrorCode());
-			throw new UnauthorizedException("Token de identidad invalido o expirado");
+			throw new UnauthorizedException(Mensajes.TOKEN_INVALIDO_O_EXPIRADO);
 		} catch (IllegalArgumentException ex) {
 			// verifyIdToken lanza esta si el token viene vacio o no tiene forma de JWT.
 			log.warn("Token de identidad vacio o mal formado");
-			throw new UnauthorizedException("Token de identidad invalido o expirado");
+			throw new UnauthorizedException(Mensajes.TOKEN_INVALIDO_O_EXPIRADO);
 		}
 	}
 }

@@ -1,5 +1,7 @@
 package com.arquetipo.demo.common.config;
 
+import com.arquetipo.demo.common.Constantes.Cors;
+import com.arquetipo.demo.common.Constantes.Propiedades;
 import java.time.Duration;
 import java.util.List;
 import org.springframework.boot.context.properties.ConfigurationProperties;
@@ -18,7 +20,7 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
  * @param allowCredentials si se permiten cookies / credenciales (incompatible con origen {@code *})
  * @param maxAge           cuanto puede cachear el navegador la respuesta preflight
  */
-@ConfigurationProperties(prefix = "app.cors")
+@ConfigurationProperties(prefix = Propiedades.PREFIJO_CORS)
 public record CorsProperties(
 		List<String> allowedOrigins,
 		List<String> allowedMethods,
@@ -30,11 +32,11 @@ public record CorsProperties(
 	public CorsProperties {
 		allowedOrigins = allowedOrigins == null ? List.of() : List.copyOf(allowedOrigins);
 		allowedMethods = allowedMethods == null || allowedMethods.isEmpty()
-				? List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS")
+				? Cors.METODOS_PERMITIDOS_POR_DEFECTO
 				: List.copyOf(allowedMethods);
 		allowedHeaders = allowedHeaders == null || allowedHeaders.isEmpty()
-				? List.of("*")
+				? Cors.CABECERAS_PERMITIDAS_POR_DEFECTO
 				: List.copyOf(allowedHeaders);
-		maxAge = maxAge == null ? Duration.ofHours(1) : maxAge;
+		maxAge = maxAge == null ? Cors.CACHE_PREFLIGHT_POR_DEFECTO : maxAge;
 	}
 }

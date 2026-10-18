@@ -1,5 +1,8 @@
 package com.arquetipo.demo.common.env;
 
+import com.arquetipo.demo.common.Constantes.Mensajes;
+import com.arquetipo.demo.common.Constantes.Propiedades;
+import com.arquetipo.demo.common.Constantes.Texto;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -34,19 +37,16 @@ import org.springframework.core.env.SystemEnvironmentPropertySource;
  */
 public class DotenvEnvironmentPostProcessor implements EnvironmentPostProcessor {
 
-	private static final String DOTENV_FILENAME = ".env";
-	private static final String PROPERTY_SOURCE_NAME = "dotenv";
-
 	@Override
 	public void postProcessEnvironment(ConfigurableEnvironment environment, SpringApplication application) {
-		Path dotenv = Path.of(DOTENV_FILENAME);
+		Path dotenv = Path.of(Propiedades.ARCHIVO_DOTENV);
 		if (!Files.isRegularFile(dotenv)) {
 			return;
 		}
 		Map<String, Object> propiedades = parse(dotenv);
 		if (!propiedades.isEmpty()) {
 			environment.getPropertySources()
-					.addLast(new SystemEnvironmentPropertySource(PROPERTY_SOURCE_NAME, propiedades));
+					.addLast(new SystemEnvironmentPropertySource(Propiedades.FUENTE_DOTENV, propiedades));
 		}
 	}
 
@@ -56,29 +56,30 @@ public class DotenvEnvironmentPostProcessor implements EnvironmentPostProcessor 
 			List<String> lineas = Files.readAllLines(dotenv);
 			for (String rawLinea : lineas) {
 				String linea = rawLinea.trim();
-				if (linea.isEmpty() || linea.startsWith("#")) {
+				if (linea.isEmpty() || linea.startsWith(Propiedades.PREFIJO_COMENTARIO_DOTENV)) {
 					continue;
 				}
-				int separador = linea.indexOf('=');
-				if (separador <= 0) {
+				int separador = linea.indexOf(Propiedades.SEPARADOR_CLAVE_VALOR_DOTENV);
+				if (separador <= Texto.INDICE_PRIMER_CARACTER) {
 					continue;
 				}
-				String clave = linea.substring(0, separador).trim();
-				String valor = quitarComillas(linea.substring(separador + 1).trim());
+				String clave = linea.substring(Texto.INDICE_PRIMER_CARACTER, separador).trim();
+				String valor = quitarComillas(linea.substring(separador + Texto.LONGITUD_UN_CARACTER).trim());
 				propiedades.put(clave, valor);
 			}
 		} catch (IOException ex) {
-			throw new IllegalStateException("No se pudo leer " + dotenv.toAbsolutePath(), ex);
+			throw new IllegalStateException(Mensajes.ERROR_LECTURA_ARCHIVO + dotenv.toAbsolutePath(), ex);
 		}
 		return propiedades;
 	}
 
 	private static String quitarComillas(String valor) {
-		if (valor.length() >= 2) {
-			char primero = valor.charAt(0);
-			char ultimo = valor.charAt(valor.length() - 1);
-			if ((primero == '"' && ultimo == '"') || (primero == '\'' && ultimo == '\'')) {
-				return valor.substring(1, valor.length() - 1);
+		if (valor.length() >= Texto.LONGITUD_MINIMA_ENVUELTO_EN_COMILLAS) {
+			char primero = valor.charAt(Texto.INDICE_PRIMER_CARACTER);
+			char ultimo = valor.charAt(valor.length() - Texto.LONGITUD_UN_CARACTER);
+			if ((primero == Texto.COMILLA_DOBLE && ultimo == Texto.COMILLA_DOBLE)
+					|| (primero == Texto.COMILLA_SIMPLE && ultimo == Texto.COMILLA_SIMPLE)) {
+				return valor.substring(Texto.LONGITUD_UN_CARACTER, valor.length() - Texto.LONGITUD_UN_CARACTER);
 			}
 		}
 		return valor;

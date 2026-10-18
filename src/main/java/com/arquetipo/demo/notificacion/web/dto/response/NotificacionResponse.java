@@ -1,4 +1,4 @@
-package com.arquetipo.demo.notificacion.web.dto;
+package com.arquetipo.demo.notificacion.web.dto.response;
 
 import io.swagger.v3.oas.annotations.media.Schema;
 import java.time.Instant;

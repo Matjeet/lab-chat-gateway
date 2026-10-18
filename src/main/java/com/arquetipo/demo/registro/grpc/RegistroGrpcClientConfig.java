@@ -1,5 +1,6 @@
 package com.arquetipo.demo.registro.grpc;
 
+import com.arquetipo.demo.common.Constantes.Grpc;
 import io.grpc.ManagedChannel;
 import io.grpc.ManagedChannelBuilder;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
@@ -21,7 +22,7 @@ import org.springframework.context.annotation.Configuration;
 @EnableConfigurationProperties(RegistroGrpcProperties.class)
 public class RegistroGrpcClientConfig {
 
-	@Bean(destroyMethod = "shutdown")
+	@Bean(destroyMethod = Grpc.METODO_CIERRE_CANAL)
 	public ManagedChannel registroChannel(RegistroGrpcProperties propiedades) {
 		return ManagedChannelBuilder
 				.forAddress(propiedades.grpcHost(), propiedades.grpcPort())

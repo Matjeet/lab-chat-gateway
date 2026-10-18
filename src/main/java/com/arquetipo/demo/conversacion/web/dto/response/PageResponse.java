@@ -1,4 +1,4 @@
-package com.arquetipo.demo.conversacion.web.dto;
+package com.arquetipo.demo.conversacion.web.dto.response;
 
 import java.util.List;
 

@@ -1,8 +1,9 @@
-package com.arquetipo.demo.conversacion.web;
+package com.arquetipo.demo.conversacion.web.websocket;
 
+import com.arquetipo.demo.common.Constantes.WebSocket;
 import com.arquetipo.demo.conversacion.service.ConversacionService;
-import com.arquetipo.demo.conversacion.web.dto.MensajeEntrante;
-import com.arquetipo.demo.conversacion.web.dto.MensajeResponse;
+import com.arquetipo.demo.conversacion.web.dto.request.MensajeEntrante;
+import com.arquetipo.demo.conversacion.web.dto.response.MensajeResponse;
 import io.grpc.stub.StreamObserver;
 import jakarta.validation.ConstraintViolation;
 import jakarta.validation.Validator;
@@ -34,10 +35,6 @@ import tools.jackson.databind.ObjectMapper;
 @Component
 public class ChatWebSocketHandler extends TextWebSocketHandler {
 
-	private static final String ATRIBUTO_ENVIO_GRPC = "streamSalienteGrpc";
-	private static final int LIMITE_ENVIO_MS = 10_000;
-	private static final int LIMITE_BUFFER_BYTES = 512 * 1024;
-
 	private final ConversacionService service;
 	private final ObjectMapper objectMapper;
 	private final Validator validator;
@@ -53,7 +50,8 @@ public class ChatWebSocketHandler extends TextWebSocketHandler {
 	public void afterConnectionEstablished(WebSocketSession session) {
 		String usuario = usuarioDe(session);
 		WebSocketSession sesionSegura =
-				new ConcurrentWebSocketSessionDecorator(session, LIMITE_ENVIO_MS, LIMITE_BUFFER_BYTES);
+				new ConcurrentWebSocketSessionDecorator(session, WebSocket.LIMITE_TIEMPO_ENVIO_MS,
+						WebSocket.LIMITE_BUFFER_BYTES);
 
 		StreamObserver<MensajeEntrante> streamSaliente = service.abrirChat(usuario, new StreamObserver<>() {
 
@@ -74,7 +72,7 @@ public class ChatWebSocketHandler extends TextWebSocketHandler {
 			}
 		});
 
-		session.getAttributes().put(ATRIBUTO_ENVIO_GRPC, streamSaliente);
+		session.getAttributes().put(WebSocket.ATRIBUTO_ENVIO_GRPC, streamSaliente);
 		log.info("Sesion de chat abierta (gateway -> chat-conversacion). usuario='{}'", usuario);
 	}
 
@@ -84,7 +82,7 @@ public class ChatWebSocketHandler extends TextWebSocketHandler {
 	@SuppressWarnings("unchecked")
 	public void afterConnectionClosed(WebSocketSession session, CloseStatus status) {
 		String usuario = usuarioDe(session);
-		Object streamSaliente = session.getAttributes().get(ATRIBUTO_ENVIO_GRPC);
+		Object streamSaliente = session.getAttributes().get(WebSocket.ATRIBUTO_ENVIO_GRPC);
 		if (streamSaliente != null) {
 			((StreamObserver<MensajeEntrante>) streamSaliente).onCompleted();
 		}
@@ -112,7 +110,7 @@ public class ChatWebSocketHandler extends TextWebSocketHandler {
 			return;
 		}
 
-		Object streamSaliente = session.getAttributes().get(ATRIBUTO_ENVIO_GRPC);
+		Object streamSaliente = session.getAttributes().get(WebSocket.ATRIBUTO_ENVIO_GRPC);
 		if (streamSaliente != null) {
 			((StreamObserver<MensajeEntrante>) streamSaliente).onNext(entrante);
 		}
@@ -143,7 +141,7 @@ public class ChatWebSocketHandler extends TextWebSocketHandler {
 
 	// Saca el usuario de los atributos de la sesion (UsuarioHandshakeInterceptor lo dejo ahi).
 	private String usuarioDe(WebSocketSession session) {
-		Object usuario = session.getAttributes().get(UsuarioHandshakeInterceptor.ATRIBUTO_USUARIO);
+		Object usuario = session.getAttributes().get(WebSocket.ATRIBUTO_USUARIO);
 		return usuario == null ? session.getId() : usuario.toString();
 	}
 }

@@ -1,5 +1,6 @@
 package com.arquetipo.demo.common.web;
 
+import com.arquetipo.demo.common.Constantes.ProblemDetails;
 import com.arquetipo.demo.common.exception.DuplicateResourceException;
 import com.arquetipo.demo.common.exception.ForbiddenException;
 import com.arquetipo.demo.common.exception.ResourceNotFoundException;
@@ -35,48 +36,53 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
 
 	@ExceptionHandler(ResourceNotFoundException.class)
 	public ProblemDetail handleNotFound(ResourceNotFoundException ex) {
-		return problem(HttpStatus.NOT_FOUND, "Recurso no encontrado", ex.getMessage(), "resource-not-found");
+		return problem(HttpStatus.NOT_FOUND, ProblemDetails.TITULO_RECURSO_NO_ENCONTRADO, ex.getMessage(),
+				ProblemDetails.TIPO_RECURSO_NO_ENCONTRADO);
 	}
 
 	@ExceptionHandler(DuplicateResourceException.class)
 	public ProblemDetail handleDuplicate(DuplicateResourceException ex) {
-		return problem(HttpStatus.CONFLICT, "Recurso duplicado", ex.getMessage(), "duplicate-resource");
+		return problem(HttpStatus.CONFLICT, ProblemDetails.TITULO_RECURSO_DUPLICADO, ex.getMessage(),
+				ProblemDetails.TIPO_RECURSO_DUPLICADO);
 	}
 
 	@ExceptionHandler(ValidationException.class)
 	public ProblemDetail handleValidation(ValidationException ex) {
-		ProblemDetail body = problem(HttpStatus.BAD_REQUEST, "Datos invalidos",
-				"El cuerpo de la peticion no supero la validacion", "validation-error");
+		ProblemDetail body = problem(HttpStatus.BAD_REQUEST, ProblemDetails.TITULO_DATOS_INVALIDOS,
+				ProblemDetails.DETALLE_VALIDACION, ProblemDetails.TIPO_ERROR_VALIDACION);
 		List<Map<String, String>> errores = ex.getErrores().stream()
-				.map(fe -> Map.of("field", fe.field(), "message", fe.message()))
+				.map(fe -> Map.of(
+						ProblemDetails.CAMPO_ERROR_NOMBRE, fe.field(),
+						ProblemDetails.CAMPO_ERROR_MENSAJE, fe.message()))
 				.toList();
-		body.setProperty("errors", errores);
+		body.setProperty(ProblemDetails.PROPIEDAD_ERRORES, errores);
 		return body;
 	}
 
 	@ExceptionHandler(UnauthorizedException.class)
 	public ProblemDetail handleUnauthorized(UnauthorizedException ex) {
-		return problem(HttpStatus.UNAUTHORIZED, "No autenticado", ex.getMessage(), "unauthorized");
+		return problem(HttpStatus.UNAUTHORIZED, ProblemDetails.TITULO_NO_AUTENTICADO, ex.getMessage(),
+				ProblemDetails.TIPO_NO_AUTENTICADO);
 	}
 
 	@ExceptionHandler(ForbiddenException.class)
 	public ProblemDetail handleForbidden(ForbiddenException ex) {
-		return problem(HttpStatus.FORBIDDEN, "Acceso denegado", ex.getMessage(), "forbidden");
+		return problem(HttpStatus.FORBIDDEN, ProblemDetails.TITULO_ACCESO_DENEGADO, ex.getMessage(),
+				ProblemDetails.TIPO_ACCESO_DENEGADO);
 	}
 
 	@ExceptionHandler(ServiceUnavailableException.class)
 	public ProblemDetail handleServiceUnavailable(ServiceUnavailableException ex) {
 		log.warn(ex.getMessage());
-		return problem(HttpStatus.SERVICE_UNAVAILABLE, "Servicio no disponible",
-				"El servicio no esta disponible en este momento. Intentelo mas tarde.",
-				"service-unavailable");
+		return problem(HttpStatus.SERVICE_UNAVAILABLE, ProblemDetails.TITULO_SERVICIO_NO_DISPONIBLE,
+				ProblemDetails.DETALLE_SERVICIO_NO_DISPONIBLE, ProblemDetails.TIPO_SERVICIO_NO_DISPONIBLE);
 	}
 
 	@ExceptionHandler(Exception.class)
 	public ProblemDetail handleUnexpected(Exception ex) {
 		log.error("Excepcion no controlada", ex);
-		return problem(HttpStatus.INTERNAL_SERVER_ERROR, "Error interno",
-				"Ocurrio un error inesperado. Contacte con soporte.", "internal-error");
+		return problem(HttpStatus.INTERNAL_SERVER_ERROR, ProblemDetails.TITULO_ERROR_INTERNO,
+				ProblemDetails.DETALLE_ERROR_INTERNO, ProblemDetails.TIPO_ERROR_INTERNO);
 	}
 
 	@Override
@@ -84,15 +90,17 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
 			MethodArgumentNotValidException ex, HttpHeaders headers,
 			HttpStatusCode status, WebRequest request) {
 
-		ProblemDetail body = problem(HttpStatus.BAD_REQUEST, "Datos invalidos",
-				"El cuerpo de la peticion no supero la validacion", "validation-error");
+		ProblemDetail body = problem(HttpStatus.BAD_REQUEST, ProblemDetails.TITULO_DATOS_INVALIDOS,
+				ProblemDetails.DETALLE_VALIDACION, ProblemDetails.TIPO_ERROR_VALIDACION);
 
 		List<Map<String, String>> fieldErrors = ex.getBindingResult().getFieldErrors().stream()
 				.map(fe -> Map.of(
-						"field", fe.getField(),
-						"message", fe.getDefaultMessage() == null ? "valor invalido" : fe.getDefaultMessage()))
+						ProblemDetails.CAMPO_ERROR_NOMBRE, fe.getField(),
+						ProblemDetails.CAMPO_ERROR_MENSAJE, fe.getDefaultMessage() == null
+								? ProblemDetails.MENSAJE_VALOR_INVALIDO
+								: fe.getDefaultMessage()))
 				.toList();
-		body.setProperty("errors", fieldErrors);
+		body.setProperty(ProblemDetails.PROPIEDAD_ERRORES, fieldErrors);
 
 		return handleExceptionInternal(ex, body, headers, HttpStatus.BAD_REQUEST, request);
 	}
@@ -100,8 +108,8 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
 	private static ProblemDetail problem(HttpStatusCode status, String title, String detail, String type) {
 		ProblemDetail body = ProblemDetail.forStatusAndDetail(status, detail);
 		body.setTitle(title);
-		body.setType(URI.create("urn:problem-type:" + type));
-		body.setProperty("timestamp", Instant.now());
+		body.setType(URI.create(ProblemDetails.PREFIJO_TIPO + type));
+		body.setProperty(ProblemDetails.PROPIEDAD_TIMESTAMP, Instant.now());
 		return body;
 	}
 }
