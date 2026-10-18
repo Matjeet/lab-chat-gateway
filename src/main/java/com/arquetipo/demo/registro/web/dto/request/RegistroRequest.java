@@ -1,5 +1,7 @@
-package com.arquetipo.demo.registro.web.dto;
+package com.arquetipo.demo.registro.web.dto.request;
 
+import com.arquetipo.demo.common.Constantes.Texto;
+import com.arquetipo.demo.common.Constantes.Validacion;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
@@ -29,20 +31,20 @@ public record RegistroRequest(
 		@Schema(
 				description = "Nombre de usuario unico. Solo letras, numeros y los signos . _ -",
 				example = "mateo",
-				minLength = 3, maxLength = 50)
+				minLength = Validacion.USERNAME_LONGITUD_MINIMA, maxLength = Validacion.USERNAME_LONGITUD_MAXIMA)
 		@NotBlank
-		@Size(min = 3, max = 50)
-		@Pattern(regexp = "^[a-zA-Z0-9._-]+$",
-				message = "solo admite letras, numeros y los signos . _ -")
+		@Size(min = Validacion.USERNAME_LONGITUD_MINIMA, max = Validacion.USERNAME_LONGITUD_MAXIMA)
+		@Pattern(regexp = Validacion.USERNAME_PATRON,
+				message = Validacion.USERNAME_PATRON_MENSAJE)
 		String username,
 
 		@Schema(
 				description = "Correo electronico unico. Se normaliza a minusculas.",
 				example = "mateo@example.com",
-				maxLength = 255)
+				maxLength = Validacion.EMAIL_LONGITUD_MAXIMA)
 		@NotBlank
 		@Email
-		@Size(max = 255)
+		@Size(max = Validacion.EMAIL_LONGITUD_MAXIMA)
 		String email,
 
 		@Schema(
@@ -50,14 +52,11 @@ public record RegistroRequest(
 						+ "chat-registro, que la reenvia al proveedor de identidad. No se "
 						+ "persiste ni se loguea en ningun punto del gateway.",
 				example = "Passw0rd!23",
-				minLength = 8, maxLength = 20,
+				minLength = Validacion.PASSWORD_LONGITUD_MINIMA, maxLength = Validacion.PASSWORD_LONGITUD_MAXIMA,
 				format = "password")
 		@NotBlank
-		@Size(min = 8, max = 20)
-		@Pattern(
-				regexp = "^(?=.*[a-z])(?=.*[A-Z])(?=.*\\d)(?=.*[^A-Za-z0-9\\s])(?!.*(.)\\1{3,}).+$",
-				message = "debe tener mayuscula, minuscula, numero y caracter especial, "
-						+ "y ningun caracter repetido 4 o mas veces seguidas")
+		@Size(min = Validacion.PASSWORD_LONGITUD_MINIMA, max = Validacion.PASSWORD_LONGITUD_MAXIMA)
+		@Pattern(regexp = Validacion.PASSWORD_PATRON, message = Validacion.PASSWORD_PATRON_MENSAJE)
 		String password,
 
 		@Schema(
@@ -65,12 +64,9 @@ public record RegistroRequest(
 						+ "<Blobatar .../> (avatar animado) que el frontend renderiza tal cual. "
 						+ "Opcional -- se puede omitir o mandar cadena vacia.",
 				example = "https://cdn.example.com/avatares/mateo.png",
-				maxLength = 500, nullable = true)
-		@Size(max = 500)
-		@Pattern(
-				regexp = "^(https?://[^\\s\"'<>]+|<Blobatar(\\s[^<>\\r\\n]*)?/>)$",
-				message = "debe ser un enlace http(s) o una etiqueta <Blobatar ... /> en una sola linea, "
-						+ "sin saltos de linea")
+				maxLength = Validacion.AVATAR_LONGITUD_MAXIMA, nullable = true)
+		@Size(max = Validacion.AVATAR_LONGITUD_MAXIMA)
+		@Pattern(regexp = Validacion.AVATAR_PATRON, message = Validacion.AVATAR_PATRON_MENSAJE)
 		String avatar
 ) {
 
@@ -96,12 +92,15 @@ public record RegistroRequest(
 		if (recortado.isEmpty()) {
 			return null;
 		}
-		if (recortado.length() >= 2) {
-			char primero = recortado.charAt(0);
-			char ultimo = recortado.charAt(recortado.length() - 1);
-			boolean envueltoEnComillas = (primero == '"' && ultimo == '"') || (primero == '\'' && ultimo == '\'');
+		if (recortado.length() >= Texto.LONGITUD_MINIMA_ENVUELTO_EN_COMILLAS) {
+			char primero = recortado.charAt(Texto.INDICE_PRIMER_CARACTER);
+			char ultimo = recortado.charAt(recortado.length() - Texto.LONGITUD_UN_CARACTER);
+			boolean envueltoEnComillas = (primero == Texto.COMILLA_DOBLE && ultimo == Texto.COMILLA_DOBLE)
+					|| (primero == Texto.COMILLA_SIMPLE && ultimo == Texto.COMILLA_SIMPLE);
 			if (envueltoEnComillas) {
-				recortado = recortado.substring(1, recortado.length() - 1).trim();
+				recortado = recortado
+						.substring(Texto.LONGITUD_UN_CARACTER, recortado.length() - Texto.LONGITUD_UN_CARACTER)
+						.trim();
 			}
 		}
 		return recortado.isEmpty() ? null : recortado;

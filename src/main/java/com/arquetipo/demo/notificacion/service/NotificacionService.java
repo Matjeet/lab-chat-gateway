@@ -1,8 +1,8 @@
 package com.arquetipo.demo.notificacion.service;
 
 import com.arquetipo.demo.notificacion.grpc.NotificacionGrpcClient;
-import com.arquetipo.demo.notificacion.web.dto.NotificacionResponse;
-import com.arquetipo.demo.notificacion.web.dto.PageResponse;
+import com.arquetipo.demo.notificacion.web.dto.response.NotificacionResponse;
+import com.arquetipo.demo.notificacion.web.dto.response.PageResponse;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 

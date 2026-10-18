@@ -1,4 +1,4 @@
-package com.arquetipo.demo.notificacion.web.dto;
+package com.arquetipo.demo.notificacion.web.dto.response;
 
 import java.util.List;
 

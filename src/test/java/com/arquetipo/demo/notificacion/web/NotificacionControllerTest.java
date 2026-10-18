@@ -13,25 +13,28 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.arquetipo.demo.common.auth.AutenticacionExtractor;
+import com.arquetipo.demo.common.auth.ValidadorAcceso;
 import com.arquetipo.demo.common.exception.ResourceNotFoundException;
 import com.arquetipo.demo.common.exception.ServiceUnavailableException;
 import com.arquetipo.demo.common.exception.UnauthorizedException;
 import com.arquetipo.demo.notificacion.service.NotificacionService;
-import com.arquetipo.demo.notificacion.web.dto.NotificacionResponse;
-import com.arquetipo.demo.notificacion.web.dto.PageResponse;
+import com.arquetipo.demo.notificacion.web.dto.response.NotificacionResponse;
+import com.arquetipo.demo.notificacion.web.dto.response.PageResponse;
 import com.arquetipo.demo.registro.service.RegistroService;
-import com.arquetipo.demo.registro.web.dto.UsuarioResponse;
+import com.arquetipo.demo.registro.web.dto.response.UsuarioResponse;
 import java.time.Instant;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
+import org.springframework.context.annotation.Import;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
 @WebMvcTest(NotificacionController.class)
+@Import(ValidadorAcceso.class)
 class NotificacionControllerTest {
 
 	@Autowired

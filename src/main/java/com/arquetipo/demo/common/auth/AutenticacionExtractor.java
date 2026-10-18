@@ -1,5 +1,7 @@
 package com.arquetipo.demo.common.auth;
 
+import com.arquetipo.demo.common.Constantes.Autenticacion;
+import com.arquetipo.demo.common.Constantes.Mensajes;
 import com.arquetipo.demo.common.exception.UnauthorizedException;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
@@ -17,8 +19,6 @@ import org.springframework.stereotype.Component;
 @Slf4j
 @Component
 public class AutenticacionExtractor {
-
-	private static final String PREFIJO_BEARER = "Bearer ";
 
 	private final VerificadorTokenIdentidad verificador;
 
@@ -44,14 +44,14 @@ public class AutenticacionExtractor {
 
 	private String extraerToken(String authorization) {
 		log.debug(">> extraerToken()");
-		if (authorization == null || !authorization.startsWith(PREFIJO_BEARER)) {
+		if (authorization == null || !authorization.startsWith(Autenticacion.PREFIJO_BEARER)) {
 			log.warn("Cabecera Authorization ausente o sin el prefijo Bearer");
-			throw new UnauthorizedException("Falta la cabecera Authorization: Bearer <idToken>");
+			throw new UnauthorizedException(Mensajes.FALTA_CABECERA_AUTHORIZATION);
 		}
-		String idToken = authorization.substring(PREFIJO_BEARER.length()).trim();
+		String idToken = authorization.substring(Autenticacion.PREFIJO_BEARER.length()).trim();
 		if (idToken.isBlank()) {
 			log.warn("Cabecera Authorization con token vacio");
-			throw new UnauthorizedException("Falta la cabecera Authorization: Bearer <idToken>");
+			throw new UnauthorizedException(Mensajes.FALTA_CABECERA_AUTHORIZATION);
 		}
 		log.debug("<< extraerToken() -> OK");
 		return idToken;

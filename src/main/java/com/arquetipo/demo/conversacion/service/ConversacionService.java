@@ -1,12 +1,12 @@
 package com.arquetipo.demo.conversacion.service;
 
 import com.arquetipo.demo.conversacion.grpc.ConversacionGrpcClient;
-import com.arquetipo.demo.conversacion.web.dto.ChatResumen;
-import com.arquetipo.demo.conversacion.web.dto.CursorPage;
-import com.arquetipo.demo.conversacion.web.dto.MensajeEntrante;
-import com.arquetipo.demo.conversacion.web.dto.MensajeResponse;
-import com.arquetipo.demo.conversacion.web.dto.PageResponse;
-import com.arquetipo.demo.conversacion.web.dto.SolicitudChatResponse;
+import com.arquetipo.demo.conversacion.web.dto.request.MensajeEntrante;
+import com.arquetipo.demo.conversacion.web.dto.response.ChatResumen;
+import com.arquetipo.demo.conversacion.web.dto.response.CursorPage;
+import com.arquetipo.demo.conversacion.web.dto.response.MensajeResponse;
+import com.arquetipo.demo.conversacion.web.dto.response.PageResponse;
+import com.arquetipo.demo.conversacion.web.dto.response.SolicitudChatResponse;
 import io.grpc.stub.StreamObserver;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;

@@ -1,12 +1,12 @@
-package com.arquetipo.demo.conversacion.web;
+package com.arquetipo.demo.conversacion.web.rest;
 
-import com.arquetipo.demo.conversacion.web.dto.ActualizarSolicitudRequest;
-import com.arquetipo.demo.conversacion.web.dto.ChatResumen;
-import com.arquetipo.demo.conversacion.web.dto.CursorPage;
-import com.arquetipo.demo.conversacion.web.dto.MensajeResponse;
-import com.arquetipo.demo.conversacion.web.dto.PageResponse;
-import com.arquetipo.demo.conversacion.web.dto.SolicitudChatRequest;
-import com.arquetipo.demo.conversacion.web.dto.SolicitudChatResponse;
+import com.arquetipo.demo.conversacion.web.dto.request.ActualizarSolicitudRequest;
+import com.arquetipo.demo.conversacion.web.dto.request.SolicitudChatRequest;
+import com.arquetipo.demo.conversacion.web.dto.response.ChatResumen;
+import com.arquetipo.demo.conversacion.web.dto.response.CursorPage;
+import com.arquetipo.demo.conversacion.web.dto.response.MensajeResponse;
+import com.arquetipo.demo.conversacion.web.dto.response.PageResponse;
+import com.arquetipo.demo.conversacion.web.dto.response.SolicitudChatResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Content;
