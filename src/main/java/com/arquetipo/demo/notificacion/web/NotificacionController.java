@@ -3,13 +3,12 @@ package com.arquetipo.demo.notificacion.web;
 import com.arquetipo.demo.common.Constantes.Mensajes;
 import com.arquetipo.demo.common.Constantes.Paginacion;
 import com.arquetipo.demo.common.Constantes.Rutas;
-import com.arquetipo.demo.common.auth.AutenticacionExtractor;
+import com.arquetipo.demo.common.auth.ValidadorAcceso;
 import com.arquetipo.demo.common.exception.ForbiddenException;
 import com.arquetipo.demo.notificacion.service.NotificacionService;
 import com.arquetipo.demo.notificacion.web.dto.request.MarcarLeidaRequest;
 import com.arquetipo.demo.notificacion.web.dto.response.NotificacionResponse;
 import com.arquetipo.demo.notificacion.web.dto.response.PageResponse;
-import com.arquetipo.demo.registro.service.RegistroService;
 import jakarta.validation.Valid;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpHeaders;
@@ -29,11 +28,11 @@ import org.springframework.web.bind.annotation.RestController;
  *
  * <p>{@link #listaNotificaciones} compara por <b>username</b>: como
  * {@code ConversacionController.listaChats}, resuelve el {@code username} del uid autenticado
- * con {@link RegistroService#obtenerUsuario} y lo compara contra {@code receptor} (403 si no
+ * con {@link ValidadorAcceso#usernameCoincide} y lo compara contra {@code receptor} (403 si no
  * coincide) — el recurso (la bandeja de un usuario) está identificado por username, no por uid.
  *
  * <p>{@link #actualizarLeida} compara por <b>uid directo</b>: como
- * {@code UsuarioController.obtenerUsuario}, compara el uid autenticado tal cual contra el
+ * {@code UsuarioController.obtenerUsuario} ({@link ValidadorAcceso#uidCoincide}), compara el uid autenticado tal cual contra el
  * {@code uid} del cuerpo, sin resolver nada contra {@code chat-registro}. Nótese que
  * {@code chat-notificaciones} no vincula una notificación a un uid ni a un username todavía
  * (`ActualizarLeidaRequest` solo lleva `id`/`leida`, ver su `.proto`) — este chequeo prueba que
@@ -46,14 +45,11 @@ import org.springframework.web.bind.annotation.RestController;
 public class NotificacionController implements NotificacionApi {
 
 	private final NotificacionService service;
-	private final RegistroService registroService;
-	private final AutenticacionExtractor autenticacion;
+	private final ValidadorAcceso validador;
 
-	public NotificacionController(NotificacionService service, RegistroService registroService,
-			AutenticacionExtractor autenticacion) {
+	public NotificacionController(NotificacionService service, ValidadorAcceso validador) {
 		this.service = service;
-		this.registroService = registroService;
-		this.autenticacion = autenticacion;
+		this.validador = validador;
 	}
 
 	@Override
@@ -65,11 +61,7 @@ public class NotificacionController implements NotificacionApi {
 			@RequestParam(defaultValue = Paginacion.TAMANO_PAGINA_POR_DEFECTO) int size,
 			@RequestParam(defaultValue = Paginacion.ORDEN_NOTIFICACIONES_POR_DEFECTO) String sort) {
 		log.debug(">> listaNotificaciones(receptor='{}', page={}, size={})", receptor, page, size);
-		String uidAutenticado = autenticacion.uidAutenticado(authorization);
-		String usernameAutenticado = registroService.obtenerUsuario(uidAutenticado).username();
-		if (!usernameAutenticado.equals(receptor)) {
-			log.warn("Acceso denegado: el usuario autenticado no coincide con el receptor pedido. receptor='{}'",
-					receptor);
+		if (!validador.usernameCoincide(authorization, receptor)) {
 			throw new ForbiddenException(Mensajes.SIN_PERMISO_CONSULTAR_NOTIFICACIONES);
 		}
 		PageResponse<NotificacionResponse> respuesta = service.listaNotificaciones(receptor, page, size, sort);
@@ -84,9 +76,7 @@ public class NotificacionController implements NotificacionApi {
 			@Valid @RequestBody MarcarLeidaRequest request,
 			@RequestHeader(value = HttpHeaders.AUTHORIZATION, required = false) String authorization) {
 		log.debug(">> actualizarLeida(id={}, leida={})", id, request.leida());
-		String uidAutenticado = autenticacion.uidAutenticado(authorization);
-		if (!uidAutenticado.equals(request.uid())) {
-			log.warn("Acceso denegado: el uid autenticado no coincide con el uid pedido. id={}", id);
+		if (!validador.uidCoincide(authorization, request.uid())) {
 			throw new ForbiddenException(Mensajes.SIN_PERMISO_MODIFICAR_NOTIFICACION);
 		}
 		NotificacionResponse respuesta = service.actualizarLeida(id, request.leida());

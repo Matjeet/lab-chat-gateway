@@ -2,7 +2,7 @@ package com.arquetipo.demo.registro.web;
 
 import com.arquetipo.demo.common.Constantes.Mensajes;
 import com.arquetipo.demo.common.Constantes.Rutas;
-import com.arquetipo.demo.common.auth.AutenticacionExtractor;
+import com.arquetipo.demo.common.auth.ValidadorAcceso;
 import com.arquetipo.demo.common.exception.ForbiddenException;
 import com.arquetipo.demo.registro.service.RegistroService;
 import com.arquetipo.demo.registro.web.dto.response.ExisteUsernameResponse;
@@ -20,7 +20,7 @@ import org.springframework.web.bind.annotation.RestController;
  * Endpoints públicos de consulta sobre usuarios ya registrados. El contrato OpenAPI vive en
  * {@link UsuarioApi}; aquí solo queda el enrutado y la autorización.
  *
- * <p>Los dos exigen autenticación (resuelta con {@link AutenticacionExtractor}, Firebase
+ * <p>Los dos exigen autenticación (resuelta con {@link ValidadorAcceso}, Firebase
  * Admin SDK por debajo, ver {@code common.auth.firebase}) — <b>{@code chat-registro} nunca ve
  * el token</b>, solo recibe el dato ya autenticado que necesita — pero con alcances distintos:
  * {@link #obtenerUsuario} exige además que el uid autenticado **coincida** con el recurso
@@ -36,11 +36,11 @@ import org.springframework.web.bind.annotation.RestController;
 public class UsuarioController implements UsuarioApi {
 
 	private final RegistroService service;
-	private final AutenticacionExtractor autenticacion;
+	private final ValidadorAcceso validador;
 
-	public UsuarioController(RegistroService service, AutenticacionExtractor autenticacion) {
+	public UsuarioController(RegistroService service, ValidadorAcceso validador) {
 		this.service = service;
-		this.autenticacion = autenticacion;
+		this.validador = validador;
 	}
 
 	@Override
@@ -49,9 +49,7 @@ public class UsuarioController implements UsuarioApi {
 			@PathVariable String uid,
 			@RequestHeader(value = HttpHeaders.AUTHORIZATION, required = false) String authorization) {
 		log.debug(">> obtenerUsuario(uid='{}')", uid);
-		String uidAutenticado = autenticacion.uidAutenticado(authorization);
-		if (!uidAutenticado.equals(uid)) {
-			log.warn("Acceso denegado: el uid autenticado no coincide con el solicitado. uid='{}'", uid);
+		if (!validador.uidCoincide(authorization, uid)) {
 			throw new ForbiddenException(Mensajes.SIN_PERMISO_CONSULTAR_USUARIO);
 		}
 		UsuarioResponse respuesta = service.obtenerUsuario(uid);
@@ -65,7 +63,7 @@ public class UsuarioController implements UsuarioApi {
 			@RequestParam String username,
 			@RequestHeader(value = HttpHeaders.AUTHORIZATION, required = false) String authorization) {
 		log.debug(">> existeUsername(username='{}')", username);
-		autenticacion.uidAutenticado(authorization);
+		validador.autenticar(authorization);
 		boolean existe = service.existeUsername(username);
 		log.debug("<< existeUsername() -> OK, existe={}", existe);
 		return new ExisteUsernameResponse(existe);

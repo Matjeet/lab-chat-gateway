@@ -201,7 +201,8 @@ com.arquetipo.demo
 │   ├── config/CorsConfig.java · CorsProperties.java   CORS para /api/** (el gateway habla con el navegador)
 │   ├── auth/                                el gateway es la UNICA frontera de autenticacion del sistema
 │   │   ├── VerificadorTokenIdentidad.java       puerto: verificar(idToken) -> uid
-│   │   ├── AutenticacionExtractor.java          lo usa cualquier controlador: uidAutenticado(Authorization)
+│   │   ├── AutenticacionExtractor.java          extrae y verifica el token: uidAutenticado(Authorization)
+│   │   ├── ValidadorAcceso.java                 lo usan los controladores: autenticar / uidCoincide / usernameCoincide
 │   │   └── firebase/
 │   │       ├── FirebaseAuthConfig.java              inicializa FirebaseApp/FirebaseAuth (solo para verificar)
 │   │       └── FirebaseVerificadorTokenIdentidad.java  implementacion sobre FirebaseAuth.verifyIdToken
@@ -218,7 +219,7 @@ com.arquetipo.demo
 │   │   ├── RegistroController.java          POST /api/v1/registro (valida + delega)
 │   │   ├── RegistroApi.java                 contrato OpenAPI del registro
 │   │   ├── UsuarioController.java           GET /api/v1/usuarios/{uid} (autentica y compara uid) y
-│   │   │                                     /existe (autentica, sin comparar), ambos con AutenticacionExtractor
+│   │   │                                     /existe (autentica, sin comparar), ambos con ValidadorAcceso
 │   │   ├── UsuarioApi.java                  contrato OpenAPI de los dos
 │   │   └── dto/request/RegistroRequest.java
 │   │       dto/response/RegistroResponse.java · UsuarioResponse.java · ExisteUsernameResponse.java

@@ -9,6 +9,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.arquetipo.demo.common.auth.AutenticacionExtractor;
+import com.arquetipo.demo.common.auth.ValidadorAcceso;
 import com.arquetipo.demo.common.exception.ResourceNotFoundException;
 import com.arquetipo.demo.common.exception.UnauthorizedException;
 import com.arquetipo.demo.common.exception.ValidationException;
@@ -18,6 +19,7 @@ import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
+import org.springframework.context.annotation.Import;
 import org.springframework.http.HttpHeaders;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
@@ -29,6 +31,7 @@ import org.springframework.test.web.servlet.MockMvc;
  * controlador (que el {@code uid} autenticado tenga que coincidir con el {@code uid} pedido).
  */
 @WebMvcTest(UsuarioController.class)
+@Import(ValidadorAcceso.class)
 class UsuarioControllerTest {
 
 	@Autowired

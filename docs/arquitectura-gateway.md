@@ -152,7 +152,8 @@ igual que confiaría en un dato que él mismo hubiera calculado.
 ```
 common/auth/
 ├── VerificadorTokenIdentidad.java   puerto: verificar(idToken) -> uid, o UnauthorizedException
-├── AutenticacionExtractor.java      lo usa cualquier controlador: uidAutenticado(cabecera Authorization)
+├── AutenticacionExtractor.java      extrae y verifica el token: uidAutenticado(cabecera Authorization)
+├── ValidadorAcceso.java             lo usan los controladores: autenticar / uidCoincide / usernameCoincide
 └── firebase/
     ├── FirebaseAuthConfig.java              inicializa FirebaseApp/FirebaseAuth (solo para verificar)
     └── FirebaseVerificadorTokenIdentidad.java  implementacion sobre FirebaseAuth.verifyIdToken
@@ -162,11 +163,10 @@ common/auth/
 autenticación:
 
 ```java
-String uidAutenticado = autenticacion.uidAutenticado(authorization); // 401 si falta o es invalido
-if (!uidAutenticado.equals(uid)) {
-    throw new ForbiddenException("...");                              // 403 si es de otro usuario
+if (!validador.uidCoincide(authorization, uid)) {   // 401 si falta o es invalido el token
+    throw new ForbiddenException("...");              // 403 si es de otro usuario
 }
-return service.obtenerUsuario(uid);                                   // a chat-registro solo llega el uid
+return service.obtenerUsuario(uid);                   // a chat-registro solo llega el uid
 ```
 
 **Cuando el recurso no lo identifica un uid** (`ConversacionController.listaChats`, sobre
@@ -174,7 +174,7 @@ return service.obtenerUsuario(uid);                                   // a chat-
 `POST /api/v1/conversaciones/solicitudes`; y `ConversacionController.actualizarSolicitud`,
 sobre `PATCH /api/v1/conversaciones/solicitudes`): el mismo patrón, con un paso intermedio. El
 recurso está en `username` (de `chat-registro`), no en el uid que devuelve
-`AutenticacionExtractor` — así que antes de comparar hay que resolver uno a partir del otro,
+`AutenticacionExtractor` — así que antes de comparar (`ValidadorAcceso.usernameCoincide`) hay que resolver uno a partir del otro,
 siempre contra `chat-registro` (la única fuente de verdad de esa relación). No importa si lo
 que se compara viene de la URL (`usuario`, un path variable) o del cuerpo (`solicitante` al
 crear, `solicitado` al actualizar — un campo del JSON) — el patrón es el mismo. Lo que sí
@@ -184,16 +184,14 @@ compara contra `solicitante` (nadie solicita en nombre de otro), `actualizarSoli
 campo correcto lo decide el caso de uso, no una convención de nombres:
 
 ```java
-String uidAutenticado = autenticacion.uidAutenticado(authorization);        // 401 si falta o es invalido
-String usernameAutenticado = registroService.obtenerUsuario(uidAutenticado).username(); // 404 si no tiene perfil
-if (!usernameAutenticado.equals(usuario)) {
-    throw new ForbiddenException("...");                                    // 403 si es de otro usuario
+if (!validador.usernameCoincide(authorization, usuario)) { // 401 si falta el token, 404 si no tiene perfil
+    throw new ForbiddenException("...");                    // 403 si es de otro usuario
 }
 return service.listaChats(usuario, cursor, size);
 ```
 
-Esto hace que `ConversacionController` dependa de `RegistroService` (`conversacion` →
-`registro`, la única dependencia cruzada entre features del gateway) — deliberado: el uid es
+Esto hace que `ValidadorAcceso` dependa de `RegistroService` (`common` →
+`registro`, la única dependencia de `common` hacia una feature) — deliberado: el uid es
 un dato de Firebase, el `username` es un dato de `chat-registro`, y solo `chat-registro` sabe
 traducir entre los dos. Un microservicio futuro cuyo recurso también se identifique por algo
 distinto al uid (un id propio, un slug, etc.) seguiría este mismo patrón: resolver primero
@@ -203,11 +201,11 @@ contra quien sea dueño de esa relación, comparar después.
 `GET /api/v1/usuarios/existe`): el endpoint necesita saber que quien pregunta es *alguien*
 autenticado, pero no que sea el dueño de *ese* recurso en concreto — comprobar si un
 `username` existe es información sobre un tercero, no sobre uno mismo (piensa "¿puedo iniciar
-un chat con él?"). Aquí basta con llamar a `AutenticacionExtractor` y descartar el resultado
-si no hace falta:
+un chat con él?"). Aquí basta con llamar a `ValidadorAcceso.autenticar`, que exige un token
+válido y no compara contra nada:
 
 ```java
-autenticacion.uidAutenticado(authorization);   // 401 si falta o es invalido; el uid en si no se usa
+validador.autenticar(authorization);   // 401 si falta o es invalido; no se compara contra nada
 return service.existeUsername(username);       // cualquier usuario autenticado puede preguntar por cualquier username
 ```
 
@@ -219,11 +217,10 @@ concreto, porque `chat-notificaciones` no vincula todavía una notificación a u
 `username`:
 
 ```java
-String uidAutenticado = autenticacion.uidAutenticado(authorization); // 401 si falta o es invalido
-if (!uidAutenticado.equals(request.uid())) {
-    throw new ForbiddenException("...");                              // 403 si es de otro usuario
+if (!validador.uidCoincide(authorization, request.uid())) { // 401 si falta o es invalido el token
+    throw new ForbiddenException("...");                     // 403 si es de otro usuario
 }
-return service.actualizarLeida(id, request.leida());                 // "id" no se valida contra el uid
+return service.actualizarLeida(id, request.leida());          // "id" no se valida contra el uid
 ```
 
 Esto **no es un error del gateway**: es un límite real del microservicio destino, documentado
@@ -279,8 +276,9 @@ patrón a seguir.
    abra el stream al conectar y traduzca frames en los dos sentidos (ver
    `ChatWebSocketHandler`), más un `HandshakeInterceptor` si hace falta validar algo de la URL
    de conexión antes de abrir el stream. **Todo endpoint REST nuevo se asume autenticado por
-   defecto**: inyecta `AutenticacionExtractor` (ver "Autenticación: el gateway es la única
-   frontera" más arriba) y, si no es evidente por el caso de uso, pregunta contra qué debe
+   defecto**: inyecta `ValidadorAcceso` (ver "Autenticación: el gateway es la única
+   frontera" más arriba; nunca escribas la comparación de token/uid/username dentro del
+   controlador) y, si no es evidente por el caso de uso, pregunta contra qué debe
    comparar esa identidad (uid, un identificador resuelto como `username`, ninguna comparación,
    o uid directo sin garantía de propiedad sobre el recurso — los patrones ya documentados)
    antes de implementarlo. **Nunca** integres
@@ -361,6 +359,16 @@ Dentro de `web/dto/` de cada feature, los DTO viven en dos subpaquetes según su
 o `CursorPage`). Un DTO nuevo se crea directamente en el que le corresponde, nunca suelto en
 `dto/`. Un envoltorio genérico que cada feature mantiene por su cuenta (`PageResponse`) se
 duplica en el `response/` de cada una, igual que antes.
+
+### Validaciones de acceso fuera del controller
+
+El controller no contiene lógica de validación de token, uid o username: la delega en
+`common/auth/ValidadorAcceso`, que expone un método por cada tipo de comprobación
+(`autenticar`, `uidCoincide`, `usernameCoincide`). El controller llama al que necesita y solo
+mira el resultado: si devuelve `false`, lanza `ForbiddenException` con el mensaje de ese
+endpoint (`Mensajes.SIN_PERMISO_*`); un token ausente o inválido ya lo corta el validador con
+`UnauthorizedException` (401). Una comprobación nueva (otro recurso, otra forma de comparar) es
+un método nuevo en `ValidadorAcceso` con su test, nunca un `if` escrito en el controller.
 
 ## Qué el gateway deliberadamente no hace
 

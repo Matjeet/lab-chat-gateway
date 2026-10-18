@@ -3,7 +3,7 @@ package com.arquetipo.demo.conversacion.web;
 import com.arquetipo.demo.common.Constantes.Mensajes;
 import com.arquetipo.demo.common.Constantes.Paginacion;
 import com.arquetipo.demo.common.Constantes.Rutas;
-import com.arquetipo.demo.common.auth.AutenticacionExtractor;
+import com.arquetipo.demo.common.auth.ValidadorAcceso;
 import com.arquetipo.demo.common.exception.ForbiddenException;
 import com.arquetipo.demo.conversacion.service.ConversacionService;
 import com.arquetipo.demo.conversacion.web.dto.request.ActualizarSolicitudRequest;
@@ -13,7 +13,6 @@ import com.arquetipo.demo.conversacion.web.dto.response.CursorPage;
 import com.arquetipo.demo.conversacion.web.dto.response.MensajeResponse;
 import com.arquetipo.demo.conversacion.web.dto.response.PageResponse;
 import com.arquetipo.demo.conversacion.web.dto.response.SolicitudChatResponse;
-import com.arquetipo.demo.registro.service.RegistroService;
 import jakarta.validation.Valid;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpHeaders;
@@ -49,16 +48,13 @@ import org.springframework.web.bind.annotation.RestController;
  * ruta de una peticion concreta.
  *
  * <p>{@link #listaChats}, {@link #crearSolicitud} y {@link #actualizarSolicitud} son los
- * endpoints autenticados de este controlador — mismo mecanismo que {@code UsuarioController}:
- * {@link AutenticacionExtractor} verifica el {@code idToken} y devuelve el uid autenticado, sin
- * que {@code chat-conversacion} vea nunca el token. La diferencia es que aqui el recurso lo
- * identifica un {@code username} de {@code chat-registro}, no un uid de Firebase, asi que hace
- * falta un paso extra: resolver el {@code username} del uid autenticado con
- * {@link RegistroService#obtenerUsuario} (la misma fuente de verdad que ya usa
- * {@code UsuarioController}) antes de comparar contra {@code usuario}/{@code solicitante}/
- * {@code solicitado}. En {@link #actualizarSolicitud} se compara contra {@code solicitado}
- * (quien recibio la solicitud), nunca contra {@code solicitante}: solo el receptor puede
- * aceptarla o rechazarla.
+ * endpoints autenticados de este controlador. La validacion no vive aqui sino en
+ * {@link ValidadorAcceso#usernameCoincide}, que verifica el {@code idToken}, resuelve el
+ * {@code username} de la cuenta autenticada y lo compara contra {@code usuario}/
+ * {@code solicitante}/{@code solicitado} (el recurso lo identifica un {@code username} de
+ * {@code chat-registro}, no un uid de Firebase); aqui solo se mira si paso y, si no, se responde
+ * 403. En {@link #actualizarSolicitud} se compara contra {@code solicitado} (quien recibio la
+ * solicitud), nunca contra {@code solicitante}: solo el receptor puede aceptarla o rechazarla.
  */
 @Slf4j
 @RestController
@@ -66,14 +62,11 @@ import org.springframework.web.bind.annotation.RestController;
 public class ConversacionController implements ConversacionApi {
 
 	private final ConversacionService service;
-	private final RegistroService registroService;
-	private final AutenticacionExtractor autenticacion;
+	private final ValidadorAcceso validador;
 
-	public ConversacionController(ConversacionService service, RegistroService registroService,
-			AutenticacionExtractor autenticacion) {
+	public ConversacionController(ConversacionService service, ValidadorAcceso validador) {
 		this.service = service;
-		this.registroService = registroService;
-		this.autenticacion = autenticacion;
+		this.validador = validador;
 	}
 
 	@Override
@@ -98,10 +91,7 @@ public class ConversacionController implements ConversacionApi {
 			@RequestParam(defaultValue = Paginacion.CURSOR_PRIMERA_PAGINA) String cursor,
 			@RequestParam(defaultValue = Paginacion.TAMANO_PAGINA_POR_DEFECTO) int size) {
 		log.debug(">> listaChats(usuario='{}', conCursor={}, size={})", usuario, !cursor.isBlank(), size);
-		String uidAutenticado = autenticacion.uidAutenticado(authorization);
-		String usernameAutenticado = registroService.obtenerUsuario(uidAutenticado).username();
-		if (!usernameAutenticado.equals(usuario)) {
-			log.warn("Acceso denegado: el usuario autenticado no coincide con el solicitado. usuario='{}'", usuario);
+		if (!validador.usernameCoincide(authorization, usuario)) {
 			throw new ForbiddenException(Mensajes.SIN_PERMISO_CONSULTAR_CHATS);
 		}
 		CursorPage<ChatResumen> respuesta = service.listaChats(usuario, cursor, size);
@@ -116,11 +106,7 @@ public class ConversacionController implements ConversacionApi {
 			@Valid @RequestBody SolicitudChatRequest request,
 			@RequestHeader(value = HttpHeaders.AUTHORIZATION, required = false) String authorization) {
 		log.debug(">> crearSolicitud(solicitante='{}', solicitado='{}')", request.solicitante(), request.solicitado());
-		String uidAutenticado = autenticacion.uidAutenticado(authorization);
-		String usernameAutenticado = registroService.obtenerUsuario(uidAutenticado).username();
-		if (!usernameAutenticado.equals(request.solicitante())) {
-			log.warn("Acceso denegado: el usuario autenticado no coincide con el solicitante. solicitante='{}'",
-					request.solicitante());
+		if (!validador.usernameCoincide(authorization, request.solicitante())) {
 			throw new ForbiddenException(Mensajes.SIN_PERMISO_CREAR_SOLICITUD);
 		}
 		SolicitudChatResponse respuesta = service.crearSolicitud(request.solicitante(), request.solicitado());
@@ -135,11 +121,7 @@ public class ConversacionController implements ConversacionApi {
 			@RequestHeader(value = HttpHeaders.AUTHORIZATION, required = false) String authorization) {
 		log.debug(">> actualizarSolicitud(solicitante='{}', solicitado='{}', aceptada={})",
 				request.solicitante(), request.solicitado(), request.aceptada());
-		String uidAutenticado = autenticacion.uidAutenticado(authorization);
-		String usernameAutenticado = registroService.obtenerUsuario(uidAutenticado).username();
-		if (!usernameAutenticado.equals(request.solicitado())) {
-			log.warn("Acceso denegado: el usuario autenticado no coincide con el solicitado. solicitado='{}'",
-					request.solicitado());
+		if (!validador.usernameCoincide(authorization, request.solicitado())) {
 			throw new ForbiddenException(Mensajes.SIN_PERMISO_RESOLVER_SOLICITUD);
 		}
 		SolicitudChatResponse respuesta = service.actualizarSolicitud(
