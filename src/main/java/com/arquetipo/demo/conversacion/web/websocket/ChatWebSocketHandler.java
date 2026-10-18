@@ -1,4 +1,4 @@
-package com.arquetipo.demo.conversacion.web;
+package com.arquetipo.demo.conversacion.web.websocket;
 
 import com.arquetipo.demo.common.Constantes.WebSocket;
 import com.arquetipo.demo.conversacion.service.ConversacionService;

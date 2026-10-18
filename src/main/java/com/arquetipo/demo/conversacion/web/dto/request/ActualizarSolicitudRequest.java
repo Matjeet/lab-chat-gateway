@@ -11,7 +11,7 @@ import jakarta.validation.constraints.Size;
  * cliente REST. Mismas reglas de formato que {@link SolicitudChatRequest}.
  *
  * <p>{@code solicitado} debe ser el {@code username} del usuario autenticado — lo compara
- * {@link com.arquetipo.demo.conversacion.web.ConversacionController#actualizarSolicitud}, no
+ * {@link com.arquetipo.demo.conversacion.web.rest.ConversacionController#actualizarSolicitud}, no
  * esta anotacion: solo quien recibio la solicitud puede aceptarla o rechazarla, nunca quien la
  * envio.
  */

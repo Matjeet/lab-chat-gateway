@@ -1,4 +1,4 @@
-package com.arquetipo.demo.conversacion.web;
+package com.arquetipo.demo.conversacion.web.websocket;
 
 import com.arquetipo.demo.common.Constantes;
 import static org.assertj.core.api.Assertions.assertThat;

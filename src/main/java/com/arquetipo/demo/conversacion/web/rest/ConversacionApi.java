@@ -1,4 +1,4 @@
-package com.arquetipo.demo.conversacion.web;
+package com.arquetipo.demo.conversacion.web.rest;
 
 import com.arquetipo.demo.conversacion.web.dto.request.ActualizarSolicitudRequest;
 import com.arquetipo.demo.conversacion.web.dto.request.SolicitudChatRequest;

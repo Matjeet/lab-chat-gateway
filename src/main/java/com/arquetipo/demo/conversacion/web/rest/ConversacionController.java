@@ -1,4 +1,4 @@
-package com.arquetipo.demo.conversacion.web;
+package com.arquetipo.demo.conversacion.web.rest;
 
 import com.arquetipo.demo.common.Constantes.Mensajes;
 import com.arquetipo.demo.common.Constantes.Paginacion;
@@ -30,7 +30,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 /**
  * Historial y lista de chats de una conversacion 1 a 1, enrutados por gRPC a
- * {@code chat-conversacion}. El envio de mensajes nuevos va por {@link ChatWebSocketHandler}
+ * {@code chat-conversacion}. El envio de mensajes nuevos va por {@link com.arquetipo.demo.conversacion.web.websocket.ChatWebSocketHandler}
  * (WebSocket, {@code /ws/chat/{usuario}}), no por aqui.
  *
  * <p>CORS para {@code /api/**} lo cubre el {@code CorsConfig} global del gateway (mismo que

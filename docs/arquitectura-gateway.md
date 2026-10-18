@@ -68,14 +68,18 @@ traducir una sola petición/respuesta:
 ```
 conversacion/
 ├── web/
-│   ├── ChatWebSocketConfig.java          registra el handler en /ws/chat/{usuario}
-│   ├── ChatWebSocketHandler.java         puente: frame de texto <-> stream gRPC (ver mas abajo)
-│   ├── UsuarioHandshakeInterceptor.java  valida el {usuario} de la URL antes de abrir el stream
-│   ├── ConversacionController.java       REST del historial (sin auth), la lista de chats y
-│   │                                      crear una solicitud (autenticados, ver
-│   │                                      "Autenticacion" mas abajo)
-│   ├── ConversacionApi.java              contrato OpenAPI de los tres
-│   └── dto/ (MensajeEntrante, MensajeResponse, PageResponse, ChatResumen, CursorPage,
+│   ├── websocket/                        todo lo del chat en tiempo real
+│   │   ├── ChatWebSocketConfig.java          registra el handler en /ws/chat/{usuario}
+│   │   ├── ChatWebSocketHandler.java         puente: frame de texto <-> stream gRPC (ver mas abajo)
+│   │   └── UsuarioHandshakeInterceptor.java  valida el {usuario} de la URL antes de abrir el stream
+│   ├── rest/                             todo lo REST
+│   │   ├── ConversacionController.java       REST del historial (sin auth), la lista de chats y
+│   │   │                                      crear/resolver una solicitud (autenticados, ver
+│   │   │                                      "Autenticacion" mas abajo)
+│   │   └── ConversacionApi.java              contrato OpenAPI
+│   └── dto/                              compartido por rest y websocket
+│       ├── request/ (MensajeEntrante, SolicitudChatRequest, ActualizarSolicitudRequest)
+│       └── response/ (MensajeResponse, PageResponse, ChatResumen, CursorPage, SolicitudChatResponse)
 ├── service/
 │   └── ConversacionService.java          delega en el grpc client; un metodo por rpc (uno
 │                                          bidi, tres unarios)
@@ -350,6 +354,14 @@ constante nueva, busca si ya existe una con el mismo significado y reutilízala.
 - Los **tests**: conservan sus literales a propósito. Un test que compara contra
   `"/api/v1/registro"` escrito a mano detecta si alguien cambia la constante por error; uno que
   usara la misma constante pasaría igual.
+
+### Paquete `web`: REST y WebSocket por separado
+
+Cuando una feature expone REST **y** WebSocket (hoy solo `conversacion/`), su `web/` se parte en
+`web/rest/` (controllers y su `*Api` de OpenAPI) y `web/websocket/` (config, handler e
+interceptor del handshake). `web/dto/` queda compartido, porque ambos lados usan los mismos
+DTO (`MensajeResponse` sale por el WebSocket y por el historial REST). Las features que solo
+exponen REST (`registro/`, `notificacion/`) mantienen `web/` plano.
 
 ### DTO: `request/` y `response/` separados
 

@@ -13,7 +13,7 @@ import jakarta.validation.constraints.Size;
  * un 400 inmediato sin siquiera llamar por gRPC.
  *
  * <p>{@code solicitante} debe ser el {@code username} del usuario autenticado — lo compara
- * {@link com.arquetipo.demo.conversacion.web.ConversacionController#crearSolicitud}, no esta
+ * {@link com.arquetipo.demo.conversacion.web.rest.ConversacionController#crearSolicitud}, no esta
  * anotacion: nadie puede crear una solicitud en nombre de otro usuario.
  */
 @Schema(name = "SolicitudChatRequest", description = "Datos para crear una solicitud de chat")

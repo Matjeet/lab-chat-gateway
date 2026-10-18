@@ -230,16 +230,19 @@ com.arquetipo.demo
 │       └── RegistroGrpcClient.java               DTO <-> proto (Registrar + BuscarUsuarioPorUid + ExisteUsername), errores gRPC <-> excepciones de dominio
 ├── conversacion/                        enrutado hacia chat-conversacion (WebSocket bidi + REST unario)
 │   ├── web/
-│   │   ├── ChatWebSocketConfig.java          registra el handler en /ws/chat/{usuario}
-│   │   ├── ChatWebSocketHandler.java         puente: frame de texto <-> stream de gRPC
-│   │   ├── UsuarioHandshakeInterceptor.java  valida el {usuario} de la URL antes de abrir el stream
-│   │   ├── ConversacionController.java       GET /api/v1/conversaciones/{usuarioA}/{usuarioB} (sin auth),
-│   │   │                                      /{usuario}/chats y POST /solicitudes (autenticados, resuelven
-│   │   │                                      el username via RegistroService)
-│   │   ├── ConversacionApi.java              contrato OpenAPI de los tres
-│   │   └── dto/request/MensajeEntrante.java · SolicitudChatRequest.java · ActualizarSolicitudRequest.java
-│   │       dto/response/MensajeResponse.java · PageResponse.java · ChatResumen.java ·
-│   │       CursorPage.java · SolicitudChatResponse.java
+│   │   ├── websocket/
+│   │   │   ├── ChatWebSocketConfig.java          registra el handler en /ws/chat/{usuario}
+│   │   │   ├── ChatWebSocketHandler.java         puente: frame de texto <-> stream de gRPC
+│   │   │   └── UsuarioHandshakeInterceptor.java  valida el {usuario} de la URL antes de abrir el stream
+│   │   ├── rest/
+│   │   │   ├── ConversacionController.java       GET /api/v1/conversaciones/{usuarioA}/{usuarioB} (sin auth),
+│   │   │   │                                      /{usuario}/chats, POST y PATCH /solicitudes (autenticados,
+│   │   │   │                                      validan con ValidadorAcceso)
+│   │   │   └── ConversacionApi.java              contrato OpenAPI
+│   │   └── dto/                                  compartido por rest y websocket
+│   │       ├── request/MensajeEntrante.java · SolicitudChatRequest.java · ActualizarSolicitudRequest.java
+│   │       └── response/MensajeResponse.java · PageResponse.java · ChatResumen.java ·
+│   │           CursorPage.java · SolicitudChatResponse.java
 │   ├── service/ConversacionService.java     orquesta; delega en el cliente gRPC
 │   └── grpc/
 │       ├── ConversacionGrpcProperties.java       host/puerto de chat-conversacion (application.yml)
